@@ -92,11 +92,13 @@ function TextareaField({
   value,
   onChange,
   rows = 4,
+  placeholder,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   rows?: number;
+  placeholder?: string;
 }) {
   return (
     <label className={labelClass}>
@@ -105,6 +107,7 @@ function TextareaField({
         className={`${inputClass} resize-y leading-6`}
         rows={rows}
         value={value}
+        placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
       />
     </label>
@@ -403,21 +406,48 @@ export function AdminDashboard() {
             {selectedSubscriber && <article className="mt-7 rounded-2xl border border-charcoal/10 bg-[#fffdf9] p-6 shadow-sm sm:p-8"><div className="flex items-start justify-between gap-5 border-b border-charcoal/10 pb-5"><div><h3 className="break-all font-display text-3xl">{selectedSubscriber.email}</h3><p className="mt-2 text-xs text-charcoal/45">Joined {new Date(selectedSubscriber.createdAt).toLocaleString()} · {selectedSubscriber.source}</p></div><button type="button" onClick={() => setSelectedSubscriberId(null)} className="rounded-full p-2 text-charcoal/45"><X className="size-4" /></button></div><div className="mt-6 grid gap-5 sm:grid-cols-[13rem_1fr_auto] sm:items-end"><label className={labelClass}>Status<select className={inputClass} value={selectedSubscriber.status} onChange={(event) => { const status = event.target.value as typeof selectedSubscriber.status; updateSubscriber(selectedSubscriber.id, { status }); void persistSubmission("subscribers", selectedSubscriber.id, { status }); }}><option value="active">Active</option><option value="unsubscribed">Unsubscribed</option></select></label><label className={labelClass}>Private note<input className={inputClass} value={selectedSubscriber.note} onChange={(event) => updateSubscriber(selectedSubscriber.id, { note: event.target.value })} placeholder="Add a note…" /></label><button type="button" onClick={() => persistSubmission("subscribers", selectedSubscriber.id, { note: selectedSubscriber.note })} className="h-11 rounded-xl bg-charcoal px-5 text-sm font-semibold text-cream">Save note</button></div></article>}
           </section>}
 
-          {tab === "settings" && <section><div><p className="section-kicker">Global content</p><h2 className="mt-3 font-display text-4xl">Site settings</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-charcoal/60">Update the homepage voice, newsletter invitation, and contact details.</p></div><div className="mt-7 grid gap-5 rounded-2xl border border-charcoal/10 bg-[#fffdf9] p-6 shadow-sm sm:grid-cols-2 sm:p-8">
+          {tab === "settings" && <section><div><p className="section-kicker">Global content</p><h2 className="mt-3 font-display text-4xl">Site settings</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-charcoal/60">Update the homepage voice, the About page, the newsletter invitation, and contact details.</p></div><div className="mt-7 grid gap-5 rounded-2xl border border-charcoal/10 bg-[#fffdf9] p-6 shadow-sm sm:grid-cols-2 sm:p-8">
             <div className="sm:col-span-2"><Field label="Site name" value={content.settings.siteName} onChange={(value) => updateSettings("siteName", value)} /></div>
             <Field label="Hero eyebrow" value={content.settings.heroEyebrow} onChange={(value) => updateSettings("heroEyebrow", value)} /><Field label="Hero headline" value={content.settings.heroTitle} onChange={(value) => updateSettings("heroTitle", value)} />
             <Field label="Hero accent line" value={content.settings.heroAccent} onChange={(value) => updateSettings("heroAccent", value)} /><Field label="Contact email" type="email" value={content.settings.contactEmail} onChange={(value) => updateSettings("contactEmail", value)} />
             <div className="sm:col-span-2"><TextareaField label="Hero biography" rows={6} value={content.settings.heroBio} onChange={(value) => updateSettings("heroBio", value)} /></div>
-            <div className="sm:col-span-2"><TextareaField label="About section headline" value={content.settings.aboutHeading} onChange={(value) => updateSettings("aboutHeading", value)} /></div>
-            <div className="sm:col-span-2"><TextareaField label="About section introduction" value={content.settings.aboutIntro} onChange={(value) => updateSettings("aboutIntro", value)} /></div>
+            <div className="sm:col-span-2"><TextareaField label="Homepage about headline" value={content.settings.aboutHeading} onChange={(value) => updateSettings("aboutHeading", value)} /></div>
+            <div className="sm:col-span-2"><TextareaField label="Homepage about introduction" value={content.settings.aboutIntro} onChange={(value) => updateSettings("aboutIntro", value)} /></div>
             <div className="sm:col-span-2"><Field label="Newsletter headline" value={content.settings.newsletterTitle} onChange={(value) => updateSettings("newsletterTitle", value)} /></div>
             <div className="sm:col-span-2"><TextareaField label="Newsletter description" value={content.settings.newsletterCopy} onChange={(value) => updateSettings("newsletterCopy", value)} /></div>
             <div className="sm:col-span-2 rounded-2xl border border-charcoal/10 bg-white p-5 sm:p-6"><div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center"><div><p className="font-display text-2xl">Hero book promotion</p><p className="mt-1 text-sm leading-6 text-charcoal/55">Control the signed-copy card displayed at the bottom of the homepage hero.</p></div><label className="inline-flex cursor-pointer items-center gap-3 text-sm font-semibold text-charcoal"><input className="size-4 accent-burgundy" type="checkbox" checked={content.settings.heroFeatureEnabled} onChange={(event) => updateSettings("heroFeatureEnabled", event.target.checked)} />Enabled</label></div>
               {content.settings.heroFeatureEnabled && <div className="mt-6 grid gap-5 border-t border-charcoal/10 pt-6 sm:grid-cols-2"><label className={labelClass}>Featured book<select className={inputClass} value={content.settings.heroFeatureBookId} onChange={(event) => updateSettings("heroFeatureBookId", event.target.value)}><option value="">Choose a published book</option>{content.books.filter((book) => book.published).map((book) => <option key={book.id} value={book.id}>{book.title}</option>)}</select></label><Field label="Eyebrow text" value={content.settings.heroFeatureEyebrow} onChange={(value) => updateSettings("heroFeatureEyebrow", value)} /><div className="sm:col-span-2"><Field label="Button label" value={content.settings.heroFeatureCtaLabel} onChange={(value) => updateSettings("heroFeatureCtaLabel", value)} /></div></div>}
             </div>
             <div className="sm:col-span-2"><AdminImageUploader label="Homepage hero image" images={content.settings.heroImage ? [content.settings.heroImage] : []} onChange={(images) => updateSettings("heroImage", images[0] ?? "")} /></div>
-            <div className="sm:col-span-2"><AdminImageUploader label="Author / about image" images={content.settings.aboutImage ? [content.settings.aboutImage] : []} onChange={(images) => updateSettings("aboutImage", images[0] ?? "")} /></div>
-          </div></section>}
+            <div className="sm:col-span-2"><AdminImageUploader label="Homepage about image" images={content.settings.aboutImage ? [content.settings.aboutImage] : []} onChange={(images) => updateSettings("aboutImage", images[0] ?? "")} /></div>
+          </div>
+
+          <div className="mt-7 rounded-2xl border border-charcoal/10 bg-[#fffdf9] p-6 shadow-sm sm:p-8">
+            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+              <div>
+                <p className="section-kicker">Dedicated page</p>
+                <h3 className="mt-3 font-display text-3xl">About page</h3>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-charcoal/60">Every word, image, and button on the /about page. Paragraphs are separated by a blank line.</p>
+              </div>
+              <label className="inline-flex shrink-0 cursor-pointer items-center gap-3 text-sm font-semibold text-charcoal"><input className="size-4 accent-burgundy" type="checkbox" checked={content.settings.aboutPageEnabled} onChange={(event) => updateSettings("aboutPageEnabled", event.target.checked)} />Published</label>
+            </div>
+
+            <div className="mt-6 grid gap-5 border-t border-charcoal/10 pt-6 sm:grid-cols-2">
+              <div className="sm:col-span-2"><Field label="Page eyebrow" value={content.settings.aboutPageEyebrow} onChange={(value) => updateSettings("aboutPageEyebrow", value)} /></div>
+              <div className="sm:col-span-2"><Field label="Page headline" value={content.settings.aboutPageTitle} onChange={(value) => updateSettings("aboutPageTitle", value)} /></div>
+              <div className="sm:col-span-2"><TextareaField label="Hero introduction" rows={4} value={content.settings.aboutPageIntro} onChange={(value) => updateSettings("aboutPageIntro", value)} /></div>
+              <div className="sm:col-span-2"><Field label="Section kicker" value={content.settings.aboutPageKicker} onChange={(value) => updateSettings("aboutPageKicker", value)} /></div>
+              <div className="sm:col-span-2"><TextareaField label="Section headline" rows={3} value={content.settings.aboutPageHeading} onChange={(value) => updateSettings("aboutPageHeading", value)} /></div>
+              <div className="sm:col-span-2"><TextareaField label="Body paragraphs" rows={12} value={content.settings.aboutPageBody} onChange={(value) => updateSettings("aboutPageBody", value)} placeholder="First paragraph.&#10;&#10;Second paragraph." /></div>
+              <div className="sm:col-span-2"><Field label="Portrait image alt text" value={content.settings.aboutPageImageAlt} onChange={(value) => updateSettings("aboutPageImageAlt", value)} /></div>
+              <div className="sm:col-span-2"><AdminImageUploader label="About page portrait" images={content.settings.aboutImage ? [content.settings.aboutImage] : []} onChange={(images) => updateSettings("aboutImage", images[0] ?? "")} /></div>
+              <Field label="Primary button label" value={content.settings.aboutPagePrimaryCtaLabel} onChange={(value) => updateSettings("aboutPagePrimaryCtaLabel", value)} />
+              <Field label="Primary button link" value={content.settings.aboutPagePrimaryCtaHref} onChange={(value) => updateSettings("aboutPagePrimaryCtaHref", value)} placeholder="/books" />
+              <Field label="Secondary button label" value={content.settings.aboutPageSecondaryCtaLabel} onChange={(value) => updateSettings("aboutPageSecondaryCtaLabel", value)} />
+              <Field label="Secondary button link" value={content.settings.aboutPageSecondaryCtaHref} onChange={(value) => updateSettings("aboutPageSecondaryCtaHref", value)} placeholder="/contact" />
+            </div>
+          </div>
+        </section>}
         </div>
       </div>
     </main>

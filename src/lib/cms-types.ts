@@ -15,6 +15,18 @@ export type CmsSettings = {
   heroFeatureBookId: string;
   heroFeatureEyebrow: string;
   heroFeatureCtaLabel: string;
+  aboutPageEyebrow: string;
+  aboutPageTitle: string;
+  aboutPageIntro: string;
+  aboutPageKicker: string;
+  aboutPageHeading: string;
+  aboutPageBody: string;
+  aboutPageImageAlt: string;
+  aboutPagePrimaryCtaLabel: string;
+  aboutPagePrimaryCtaHref: string;
+  aboutPageSecondaryCtaLabel: string;
+  aboutPageSecondaryCtaHref: string;
+  aboutPageEnabled: boolean;
 };
 
 export type CmsBook = {

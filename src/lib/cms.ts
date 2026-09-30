@@ -28,16 +28,38 @@ async function readJsonContent(): Promise<CmsContent> {
 }
 
 function normalizeCmsContent(content: CmsContent): CmsContent {
+  const settings = content.settings;
   return {
     ...content,
     settings: {
-      ...content.settings,
-      heroImage: content.settings.heroImage || "/images/pic.jpeg",
-      aboutImage: content.settings.aboutImage || "/images/keisha-profile-c.png",
-      heroFeatureEnabled: content.settings.heroFeatureEnabled ?? true,
-      heroFeatureBookId: content.settings.heroFeatureBookId || "the-love-enthusiast",
-      heroFeatureEyebrow: content.settings.heroFeatureEyebrow || "Order a signed copy today",
-      heroFeatureCtaLabel: content.settings.heroFeatureCtaLabel || "View the book",
+      ...settings,
+      heroImage: settings.heroImage || "/images/pic.jpeg",
+      aboutImage: settings.aboutImage || "/images/keisha-profile-c.png",
+      heroFeatureEnabled: settings.heroFeatureEnabled ?? true,
+      heroFeatureBookId: settings.heroFeatureBookId || "the-love-enthusiast",
+      heroFeatureEyebrow: settings.heroFeatureEyebrow || "Order a signed copy today",
+      heroFeatureCtaLabel: settings.heroFeatureCtaLabel || "View the book",
+      aboutPageEyebrow: settings.aboutPageEyebrow || "About Keisha",
+      aboutPageTitle: settings.aboutPageTitle || "A writer shaped by purpose, humor, and heart.",
+      aboutPageIntro: settings.aboutPageIntro || settings.heroBio || "",
+      aboutPageKicker: settings.aboutPageKicker || "Her story",
+      aboutPageHeading:
+        settings.aboutPageHeading || "Rediscovering writing changed the direction of her life.",
+      aboutPageBody:
+        settings.aboutPageBody ||
+        [
+          settings.heroBio,
+          "Keisha enjoys creating stories with lighthearted humor that leave a profound message. She’s a testament of what the power of finding and following your purpose can do and aims to inspire others to do the same.",
+          "In her spare time, you can find her at a wine tasting event, music or comedy show, traveling, sampling vegan dishes, or simply curled up with a captivating read.",
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
+      aboutPageImageAlt: settings.aboutPageImageAlt || "Keisha ‘WriteNow’ Allen",
+      aboutPagePrimaryCtaLabel: settings.aboutPagePrimaryCtaLabel || "Explore the books",
+      aboutPagePrimaryCtaHref: settings.aboutPagePrimaryCtaHref || "/books",
+      aboutPageSecondaryCtaLabel: settings.aboutPageSecondaryCtaLabel || "Contact Keisha",
+      aboutPageSecondaryCtaHref: settings.aboutPageSecondaryCtaHref || "/contact",
+      aboutPageEnabled: settings.aboutPageEnabled ?? true,
     },
     books: content.books.map((book) => ({
       ...book,
