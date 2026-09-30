@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { AdminDashboard } from "@/components/admin-dashboard";
 
 export const metadata: Metadata = {
-  title: "Content Studio | Keisha WriteNow Allen",
+  title: "Content Studio",
   robots: { index: false, follow: false },
 };
 

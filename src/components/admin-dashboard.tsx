@@ -40,7 +40,6 @@ import { AdminBookFileUploader } from "@/components/admin-book-file-uploader";
 
 type Tab = "overview" | "books" | "news" | "events" | "media" | "inquiries" | "subscribers" | "settings";
 type CollectionKey = "books" | "news" | "events" | "media";
-type DatabaseStatus = { configured: boolean; connected: boolean; database?: string; mode: "mongodb" | "json-fallback"; error?: string };
 
 const navItems: { id: Tab; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -162,7 +161,6 @@ export function AdminDashboard() {
   const router = useRouter();
   const [content, setContent] = useState<CmsContent | null>(null);
   const [submissions, setSubmissions] = useState<CmsSubmissions | null>(null);
-  const [databaseStatus, setDatabaseStatus] = useState<DatabaseStatus | null>(null);
   const [tab, setTab] = useState<Tab>("overview");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -176,16 +174,14 @@ export function AdminDashboard() {
     Promise.all([
       fetch("/api/admin/content", { cache: "no-store" }),
       fetch("/api/admin/submissions", { cache: "no-store" }),
-      fetch("/api/admin/database", { cache: "no-store" }),
     ])
-      .then(async ([contentResponse, submissionsResponse, databaseResponse]) => {
+      .then(async ([contentResponse, submissionsResponse]) => {
         if (!contentResponse.ok || !submissionsResponse.ok) throw new Error("Could not load the CMS data.");
-        return Promise.all([contentResponse.json() as Promise<CmsContent>, submissionsResponse.json() as Promise<CmsSubmissions>, databaseResponse.json() as Promise<DatabaseStatus>]);
+        return Promise.all([contentResponse.json() as Promise<CmsContent>, submissionsResponse.json() as Promise<CmsSubmissions>]);
       })
-      .then(([contentData, submissionsData, databaseData]) => {
+      .then(([contentData, submissionsData]) => {
         setContent(contentData);
         setSubmissions(submissionsData);
-        setDatabaseStatus(databaseData);
       })
       .catch((error: Error) => setNotice({ kind: "error", message: error.message }));
   }, []);
@@ -325,7 +321,7 @@ export function AdminDashboard() {
   const selectedInquiry = submissions?.inquiries.find((item) => item.id === selectedInquiryId) ?? null;
   const selectedSubscriber = submissions?.subscribers.find((item) => item.id === selectedSubscriberId) ?? null;
 
-  if (!content || !submissions || !databaseStatus) {
+  if (!content || !submissions) {
     return <div className="flex min-h-screen items-center justify-center bg-[#f7f1e8] text-burgundy"><LoaderCircle className="size-8 animate-spin" /><span className="ml-3 font-semibold">Loading CMS…</span></div>;
   }
 
@@ -365,7 +361,6 @@ export function AdminDashboard() {
           {tab === "overview" && <section>
             <div className="rounded-3xl bg-burgundy p-7 text-cream sm:p-10"><p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold">Content at a glance</p><h2 className="mt-4 max-w-2xl font-display text-4xl leading-tight sm:text-5xl">Manage the stories, books, appearances, and details readers see.</h2><p className="mt-5 max-w-2xl text-sm leading-7 text-cream/70">Choose a content area, make your changes, then use Save changes. Draft entries stay hidden until you mark them published.</p></div>
             <div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{counts.map((item) => { const Icon = item.icon; return <button key={item.label} type="button" onClick={() => selectTab(item.tab)} className="rounded-2xl border border-charcoal/10 bg-[#fffdf9] p-6 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-burgundy/30"><Icon className="size-5 text-burgundy" /><span className="mt-8 block font-display text-5xl">{item.value}</span><span className="mt-1 block text-sm font-semibold text-charcoal/55">{item.label}</span></button>; })}</div>
-            <div className={`mt-7 rounded-2xl border p-6 ${databaseStatus.connected ? "border-emerald-200 bg-emerald-50" : "border-gold/35 bg-gold/10"}`}><div className="flex items-center gap-3"><span className={`size-2.5 rounded-full ${databaseStatus.connected ? "bg-emerald-600" : "bg-gold"}`} /><h3 className="font-display text-2xl">{databaseStatus.connected ? "MongoDB connected" : "MongoDB ready to connect"}</h3></div><p className="mt-2 max-w-3xl text-sm leading-6 text-charcoal/65">{databaseStatus.connected ? `CMS content and audience submissions are stored in the ${databaseStatus.database} database.` : "The app is using its local JSON fallback. Add MONGODB_URI to .env.local, restart the app, then run npm run db:migrate to move the current content into MongoDB."}</p></div>
           </section>}
 
           {tab === "books" && <section><CollectionHeader title="Books" copy="Manage book covers, descriptions, categories, prices, and publishing status." onAdd={() => addItem("books")} />

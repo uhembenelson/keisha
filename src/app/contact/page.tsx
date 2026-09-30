@@ -7,7 +7,12 @@ import { PageHero } from "@/components/page-hero";
 import { SiteFooter } from "@/components/site-footer";
 import { getCmsContent } from "@/lib/cms";
 
-export const metadata: Metadata = { title: "Contact | Keisha WriteNow Allen" };
+export const metadata: Metadata = {
+  title: "Contact",
+  description:
+    "Get in touch with Keisha ‘WriteNow’ Allen about bookings, interviews, speaking engagements, or your story.",
+  alternates: { canonical: "/contact" },
+};
 
 export const dynamic = "force-dynamic";
 

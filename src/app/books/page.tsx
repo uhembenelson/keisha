@@ -9,7 +9,12 @@ import { SiteFooter } from "@/components/site-footer";
 import { BookAction } from "@/components/book-action";
 import { getCmsContent } from "@/lib/cms";
 
-export const metadata: Metadata = { title: "Books | Keisha WriteNow Allen" };
+export const metadata: Metadata = {
+  title: "Books",
+  description:
+    "Browse the novels by Keisha ‘WriteNow’ Allen, including the contemporary fiction titles Worth the Weight and The Love Enthusiast.",
+  alternates: { canonical: "/books" },
+};
 export const dynamic = "force-dynamic";
 
 export default async function BooksPage() {

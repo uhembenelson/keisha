@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -17,6 +18,13 @@ import { NewsletterForm } from "@/components/newsletter-form";
 import { SiteFooter } from "@/components/site-footer";
 import { getCmsContent } from "@/lib/cms";
 import { BookAction } from "@/components/book-action";
+
+export const metadata: Metadata = {
+  title: "Author & Creative Entrepreneur",
+  description:
+    "Keisha ‘WriteNow’ Allen is a Miami-based contemporary fiction author, singer, and speaker. Discover Worth the Weight and The Love Enthusiast.",
+  alternates: { canonical: "/" },
+};
 
 const creativeRoles = [
   {

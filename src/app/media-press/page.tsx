@@ -8,7 +8,12 @@ import { PageHero } from "@/components/page-hero";
 import { SiteFooter } from "@/components/site-footer";
 import { getCmsContent } from "@/lib/cms";
 
-export const metadata: Metadata = { title: "Media + Press | Keisha WriteNow Allen" };
+export const metadata: Metadata = {
+  title: "Media + Press",
+  description:
+    "Interviews, podcast appearances, and features featuring author Keisha ‘WriteNow’ Allen.",
+  alternates: { canonical: "/media-press" },
+};
 
 export const dynamic = "force-dynamic";
 

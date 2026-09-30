@@ -17,7 +17,29 @@ export async function generateMetadata({ params }: BookPageProps): Promise<Metad
   const { slug } = await params;
   const cms = await getCmsContent();
   const book = cms.books.find((item) => item.slug === slug && item.published);
-  return { title: book ? `${book.title} | Keisha WriteNow Allen` : "Book | Keisha WriteNow Allen" };
+
+  if (!book) {
+    return { title: "Book not found", robots: { index: false, follow: true } };
+  }
+
+  const description = book.shortDescription || book.description?.slice(0, 160) || `Read ${book.title} by Keisha ‘WriteNow’ Allen.`;
+
+  return {
+    title: book.title,
+    description,
+    alternates: { canonical: `/books/${book.slug}` },
+    openGraph: {
+      type: "book",
+      title: `${book.title} by Keisha ‘WriteNow’ Allen`,
+      description,
+      images: book.cover ? [{ url: book.cover, alt: `${book.title} book cover` }] : undefined,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${book.title} by Keisha ‘WriteNow’ Allen`,
+      description,
+    },
+  };
 }
 
 export default async function BookPage({ params }: BookPageProps) {

@@ -7,7 +7,7 @@ import { ArrowLeft } from "lucide-react";
 import { AdminLoginForm } from "@/components/admin-login-form";
 
 export const metadata: Metadata = {
-  title: "Admin Login | Keisha WriteNow Allen",
+  title: "Admin Login",
   robots: { index: false, follow: false },
 };
 

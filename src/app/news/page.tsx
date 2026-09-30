@@ -9,7 +9,12 @@ import { PageHero } from "@/components/page-hero";
 import { SiteFooter } from "@/components/site-footer";
 import { getCmsContent } from "@/lib/cms";
 
-export const metadata: Metadata = { title: "News | Keisha WriteNow Allen" };
+export const metadata: Metadata = {
+  title: "News",
+  description:
+    "The latest updates, announcements, and behind-the-scenes notes from Keisha ‘WriteNow’ Allen.",
+  alternates: { canonical: "/news" },
+};
 
 export const dynamic = "force-dynamic";
 

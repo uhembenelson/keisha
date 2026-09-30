@@ -8,7 +8,12 @@ import { PageHero } from "@/components/page-hero";
 import { SiteFooter } from "@/components/site-footer";
 import { getCmsContent } from "@/lib/cms";
 
-export const metadata: Metadata = { title: "About Keisha | Keisha WriteNow Allen" };
+export const metadata: Metadata = {
+  title: "About",
+  description:
+    "Meet Keisha ‘WriteNow’ Allen — a Miami-based project manager by day and contemporary fiction author, singer, and speaker by calling.",
+  alternates: { canonical: "/about" },
+};
 
 export const dynamic = "force-dynamic";
 

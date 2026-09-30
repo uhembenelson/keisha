@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -8,6 +9,33 @@ import { SiteFooter } from "@/components/site-footer";
 import { getCmsContent } from "@/lib/cms";
 
 export const dynamic = "force-dynamic";
+
+type NewsPageProps = { params: Promise<{ slug: string }> };
+
+export async function generateMetadata({ params }: NewsPageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const item = (await getCmsContent()).news.find((entry) => entry.slug === slug && entry.published);
+
+  if (!item) {
+    return { title: "Article not found", robots: { index: false, follow: true } };
+  }
+
+  const description = item.excerpt || item.body?.slice(0, 160) || `Read the latest from Keisha ‘WriteNow’ Allen.`;
+
+  return {
+    title: item.title,
+    description,
+    alternates: { canonical: `/news/${item.slug}` },
+    openGraph: {
+      type: "article",
+      title: item.title,
+      description,
+      images: item.image ? [{ url: item.image, alt: item.title }] : undefined,
+      publishedTime: item.date || undefined,
+    },
+    twitter: { card: "summary_large_image", title: item.title, description },
+  };
+}
 
 export default async function NewsDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
