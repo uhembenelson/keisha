@@ -1,0 +1,85 @@
+{
+  "settings": {
+    "siteName": "Keisha “WriteNow” Allen",
+    "heroEyebrow": "Keisha “WriteNow” Allen",
+    "heroTitle": "Stories beyond",
+    "heroAccent": "the expected.",
+    "heroBio": "Keisha ‘WriteNow’ Allen is a freelance and contemporary fiction author who hails from the vibrant city of Miami, Florida. A project manager by day, Keisha is also a phenomenal singer and speaker. She credits a rediscovery of writing for saving her life.",
+    "aboutHeading": "Through her voice, stories unfold with humor, heart, and a profound message.",
+    "aboutIntro": "A project manager by day and a storyteller by calling, Keisha credits the rediscovery of writing with saving her life.",
+    "newsletterTitle": "Fresh stories, book news, and inspiration for your inbox.",
+    "newsletterCopy": "Join Keisha’s reading circle for occasional updates about new releases, appearances, and the creative journey.",
+    "contactEmail": "hello@keishawritenowallen.com",
+    "heroImage": "/images/pic.jpeg",
+    "aboutImage": "/images/keisha-profile-c.png",
+    "heroFeatureEnabled": true,
+    "heroFeatureBookId": "the-love-enthusiast",
+    "heroFeatureEyebrow": "Order a signed copy today",
+    "heroFeatureCtaLabel": "View the book"
+  },
+  "books": [
+    {
+      "id": "worth-the-weight",
+      "slug": "worth-the-weight",
+      "title": "Worth the Weight",
+      "category": "Contemporary fiction",
+      "price": "$16.95",
+      "availability": "paid",
+      "purchaseUrl": "https://www.walmart.com/ip/770244243",
+      "retailers": [
+        { "id": "barnes-noble", "name": "Barnes & Noble", "url": "https://www.barnesandnoble.com/s/9781735578903" },
+        { "id": "target", "name": "Target", "url": "https://www.target.com/s?searchTerm=9781735578903" },
+        { "id": "walmart", "name": "Walmart", "url": "https://www.walmart.com/ip/770244243" },
+        { "id": "amazon", "name": "Amazon", "url": "https://www.amazon.com/s?k=9781735578903" },
+        { "id": "thriftbooks", "name": "ThriftBooks", "url": "https://www.thriftbooks.com/w/worth-the-weight--a-love-like-no-other/28869531/" },
+        { "id": "bookshop", "name": "Bookshop.org", "url": "https://bookshop.org/search?keywords=9781735578903" }
+      ],
+      "downloadUrl": "",
+      "cover": "/images/worth-the-weight-cover.png",
+      "gallery": [],
+      "shortDescription": "Anisa’s journey through love, purpose, self-worth, and the courage to return to her true passion.",
+      "description": "Anisa loves to sing, but she hates being fat. It doesn’t help that the first boy she ever liked as a child rejected her because of her weight. That’s why she can’t find the courage to get on stage, and her journey to love hasn’t been easy.\n\nWhen an escape to D.C. for Homecoming weekend brings someone unexpected into her life, Anisa must decide whether to keep playing it safe or find the courage to return to her true passion.",
+      "published": true
+    },
+    {
+      "id": "the-love-enthusiast",
+      "slug": "the-love-enthusiast",
+      "title": "The Love Enthusiast",
+      "category": "A Love Like No Other, book two",
+      "price": "$17.95",
+      "availability": "paid",
+      "purchaseUrl": "https://www.amazon.com/Love-Enthusiast-Like-Other-Book-ebook/dp/B0CL2M561G?ref_=ast_author_mpb",
+      "retailers": [
+        { "id": "barnes-noble", "name": "Barnes & Noble", "url": "https://www.barnesandnoble.com/s/9781735578927" },
+        { "id": "target", "name": "Target", "url": "https://www.target.com/s?searchTerm=9781735578927" },
+        { "id": "walmart", "name": "Walmart", "url": "https://www.walmart.com/search?q=9781735578927" },
+        { "id": "amazon", "name": "Amazon", "url": "https://www.amazon.com/Love-Enthusiast-Like-Other-Book-ebook/dp/B0CL2M561G?ref_=ast_author_mpb" },
+        { "id": "thriftbooks", "name": "ThriftBooks", "url": "https://www.thriftbooks.com/browse/?b.search=9781735578927" },
+        { "id": "bookshop", "name": "Bookshop.org", "url": "https://bookshop.org/search?keywords=9781735578927" }
+      ],
+      "downloadUrl": "",
+      "cover": "/images/the-love-enthusiast-cover.png",
+      "gallery": [
+        "/images/the-love-enthusiast-mockup.png"
+      ],
+      "shortDescription": "A poignant story of resilience, forgiveness, family secrets, and a woman determined to love.",
+      "description": "Amina ‘Badass’ Thompkins is a woman who defies time and embraces love with an unwavering spirit. In her fifties, she remains a timeless beauty, as a singer with an enchanting voice that captivates audiences, though she shies away from the limelight.\n\nTo find true happiness, Amina must confront family secrets, the ghosts of her past, and the healing power of forgiveness.",
+      "published": true
+    }
+  ],
+  "news": [],
+  "events": [],
+  "media": [
+    {
+      "id": "discovering-your-purpose",
+      "title": "Discovering Your Purpose",
+      "type": "Interview",
+      "outlet": "Kreative Kreations Publishing TV",
+      "date": "",
+      "summary": "Keisha talks about discovering your purpose, creative work, and the journey back to writing.",
+      "image": "/images/keisha-profile-c.png",
+      "gallery": [],
+      "published": true
+    }
+  ]
+}
