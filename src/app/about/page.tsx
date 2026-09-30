@@ -64,7 +64,7 @@ export default async function AboutPage() {
         <div className="mx-auto grid max-w-[82rem] gap-12 lg:grid-cols-[0.82fr_1.18fr] lg:items-start">
           <div className="relative min-h-[38rem] overflow-hidden bg-dusty-rose/25">
             <Image
-              src={settings.aboutImage || settings.heroImage || "/images/pic.jpeg"}
+              src={settings.aboutPageImage || settings.aboutImage || settings.heroImage || "/images/pic.jpeg"}
               alt={settings.aboutPageImageAlt}
               fill
               sizes="(max-width: 1024px) 100vw, 42vw"

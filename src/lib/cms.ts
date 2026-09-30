@@ -55,6 +55,7 @@ function normalizeCmsContent(content: CmsContent): CmsContent {
           .filter(Boolean)
           .join("\n\n"),
       aboutPageImageAlt: settings.aboutPageImageAlt || "Keisha ‘WriteNow’ Allen",
+      aboutPageImage: settings.aboutPageImage || settings.aboutImage || "/images/keisha-profile-c.png",
       aboutPagePrimaryCtaLabel: settings.aboutPagePrimaryCtaLabel || "Explore the books",
       aboutPagePrimaryCtaHref: settings.aboutPagePrimaryCtaHref || "/books",
       aboutPageSecondaryCtaLabel: settings.aboutPageSecondaryCtaLabel || "Contact Keisha",

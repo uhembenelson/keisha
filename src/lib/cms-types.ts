@@ -21,6 +21,7 @@ export type CmsSettings = {
   aboutPageKicker: string;
   aboutPageHeading: string;
   aboutPageBody: string;
+  aboutPageImage: string;
   aboutPageImageAlt: string;
   aboutPagePrimaryCtaLabel: string;
   aboutPagePrimaryCtaHref: string;

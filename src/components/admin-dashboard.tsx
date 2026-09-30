@@ -440,7 +440,7 @@ export function AdminDashboard() {
               <div className="sm:col-span-2"><TextareaField label="Section headline" rows={3} value={content.settings.aboutPageHeading} onChange={(value) => updateSettings("aboutPageHeading", value)} /></div>
               <div className="sm:col-span-2"><TextareaField label="Body paragraphs" rows={12} value={content.settings.aboutPageBody} onChange={(value) => updateSettings("aboutPageBody", value)} placeholder="First paragraph.&#10;&#10;Second paragraph." /></div>
               <div className="sm:col-span-2"><Field label="Portrait image alt text" value={content.settings.aboutPageImageAlt} onChange={(value) => updateSettings("aboutPageImageAlt", value)} /></div>
-              <div className="sm:col-span-2"><AdminImageUploader label="About page portrait" images={content.settings.aboutImage ? [content.settings.aboutImage] : []} onChange={(images) => updateSettings("aboutImage", images[0] ?? "")} /></div>
+              <div className="sm:col-span-2"><AdminImageUploader label="About page portrait" images={content.settings.aboutPageImage ? [content.settings.aboutPageImage] : []} onChange={(images) => updateSettings("aboutPageImage", images[0] ?? "")} /></div>
               <Field label="Primary button label" value={content.settings.aboutPagePrimaryCtaLabel} onChange={(value) => updateSettings("aboutPagePrimaryCtaLabel", value)} />
               <Field label="Primary button link" value={content.settings.aboutPagePrimaryCtaHref} onChange={(value) => updateSettings("aboutPagePrimaryCtaHref", value)} placeholder="/books" />
               <Field label="Secondary button label" value={content.settings.aboutPageSecondaryCtaLabel} onChange={(value) => updateSettings("aboutPageSecondaryCtaLabel", value)} />
