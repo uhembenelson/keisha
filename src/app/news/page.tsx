@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ArrowUpRight, Newspaper } from "lucide-react";
 
 import { Navbar } from "@/components/navbar";
-import { NewsletterForm } from "@/components/newsletter-form";
+import { NewsletterSignup } from "@/components/newsletter-signup";
 import { PageHero } from "@/components/page-hero";
 import { SiteFooter } from "@/components/site-footer";
 import { getCmsContent } from "@/lib/cms";
@@ -33,7 +33,7 @@ export default async function NewsPage() {
           </div>
           <div className="mt-16 grid gap-10 bg-burgundy p-8 text-cream sm:p-12 lg:grid-cols-[1fr_1.1fr] lg:items-center">
             <div><p className="text-xs font-semibold uppercase tracking-[0.22em] text-gold">The WriteNow Letter</p><h2 className="mt-4 font-display text-4xl sm:text-5xl">{cms.settings.newsletterTitle}</h2></div>
-            <div><NewsletterForm /><Link href="/contact" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-gold">Have a story idea? Contact Keisha <ArrowUpRight className="size-4" /></Link></div>
+            <div><NewsletterSignup externalUrl={cms.settings.newsletterExternalUrl} externalLabel={cms.settings.newsletterExternalLabel} /><Link href="/contact" className="mt-5 flex w-fit items-center gap-2 text-sm font-semibold text-gold">Have a story idea? Contact Keisha <ArrowUpRight className="size-4" /></Link></div>
           </div>
         </div>
       </section>

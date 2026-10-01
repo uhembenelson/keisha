@@ -8,8 +8,13 @@ import {
   BookOpenText,
   CalendarDays,
   Check,
+  ChevronDown,
+  ChevronUp,
   ExternalLink,
+  Eye,
+  EyeOff,
   FileText,
+  GripVertical,
   LayoutDashboard,
   LoaderCircle,
   LogOut,
@@ -30,11 +35,14 @@ import type {
   CmsBookRetailer,
   CmsContent,
   CmsEvent,
+  CmsHomepageSectionId,
   CmsMediaItem,
   CmsNewsItem,
   CmsSettings,
+  CmsSocialLink,
   CmsSubmissions,
 } from "@/lib/cms-types";
+import { HERO_NEWSLETTER_LIMITS, HOMEPAGE_STAT_LIMITS, homepageStatsFitLayout } from "@/lib/cms-types";
 import { AdminImageUploader } from "@/components/admin-image-uploader";
 import { AdminBookFileUploader } from "@/components/admin-book-file-uploader";
 
@@ -52,6 +60,16 @@ const navItems: { id: Tab; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "settings", label: "Site settings", icon: Settings },
 ];
 
+const homepageSectionLabels: Record<CmsHomepageSectionId, string> = {
+  hero: "Hero",
+  about: "About & statistics",
+  books: "Books",
+  creative: "Creative roles",
+  "featured-book": "Featured book",
+  connect: "Connect & contact",
+  newsletter: "Newsletter",
+};
+
 const inputClass =
   "mt-2 w-full rounded-xl border border-charcoal/15 bg-white px-4 py-3 text-sm text-charcoal outline-none transition focus:border-burgundy focus:ring-2 focus:ring-burgundy/10";
 const labelClass = "text-xs font-semibold uppercase tracking-[0.12em] text-charcoal/55";
@@ -66,21 +84,24 @@ function Field({
   onChange,
   type = "text",
   placeholder,
+  maxLength,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   type?: string;
   placeholder?: string;
+  maxLength?: number;
 }) {
   return (
     <label className={labelClass}>
-      {label}
+      <span className="flex items-center justify-between gap-3"><span>{label}</span>{maxLength ? <span className="shrink-0 normal-case tracking-normal text-charcoal/40">{value.length}/{maxLength}</span> : null}</span>
       <input
         className={inputClass}
         type={type}
         value={value}
         placeholder={placeholder}
+        maxLength={maxLength}
         onChange={(event) => onChange(event.target.value)}
       />
     </label>
@@ -93,21 +114,24 @@ function TextareaField({
   onChange,
   rows = 4,
   placeholder,
+  maxLength,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   rows?: number;
   placeholder?: string;
+  maxLength?: number;
 }) {
   return (
     <label className={labelClass}>
-      {label}
+      <span className="flex items-center justify-between gap-3"><span>{label}</span>{maxLength ? <span className="shrink-0 normal-case tracking-normal text-charcoal/40">{value.length}/{maxLength}</span> : null}</span>
       <textarea
         className={`${inputClass} resize-y leading-6`}
         rows={rows}
         value={value}
         placeholder={placeholder}
+        maxLength={maxLength}
         onChange={(event) => onChange(event.target.value)}
       />
     </label>
@@ -171,6 +195,7 @@ export function AdminDashboard() {
   const [editing, setEditing] = useState<Record<CollectionKey, number | null>>({ books: null, news: null, events: null, media: null });
   const [selectedInquiryId, setSelectedInquiryId] = useState<string | null>(null);
   const [selectedSubscriberId, setSelectedSubscriberId] = useState<string | null>(null);
+  const [draggedHomepageSection, setDraggedHomepageSection] = useState<CmsHomepageSectionId | null>(null);
   const [notice, setNotice] = useState<{ kind: "success" | "error"; message: string } | null>(null);
 
   useEffect(() => {
@@ -215,6 +240,32 @@ export function AdminDashboard() {
     setContent((current) => current && { ...current, settings: { ...current.settings, [key]: value } });
   }
 
+  function toggleHomepageSection(id: CmsHomepageSectionId) {
+    if (!content) return;
+    updateSettings("homepageSections", content.settings.homepageSections.map((section) =>
+      section.id === id ? { ...section, enabled: !section.enabled } : section,
+    ));
+  }
+
+  function moveHomepageSection(id: CmsHomepageSectionId, targetIndex: number) {
+    if (!content) return;
+    const sections = [...content.settings.homepageSections];
+    const currentIndex = sections.findIndex((section) => section.id === id);
+    if (currentIndex < 0) return;
+    const boundedTarget = Math.max(0, Math.min(targetIndex, sections.length - 1));
+    if (currentIndex === boundedTarget) return;
+    const [moved] = sections.splice(currentIndex, 1);
+    sections.splice(boundedTarget, 0, moved);
+    updateSettings("homepageSections", sections);
+  }
+
+  function dropHomepageSection(targetId: CmsHomepageSectionId) {
+    if (!content || !draggedHomepageSection || draggedHomepageSection === targetId) return;
+    const targetIndex = content.settings.homepageSections.findIndex((section) => section.id === targetId);
+    moveHomepageSection(draggedHomepageSection, targetIndex);
+    setDraggedHomepageSection(null);
+  }
+
   function updateItem<K extends CollectionKey>(collection: K, index: number, patch: Partial<CmsContent[K][number]>) {
     setDirty(true);
     setContent((current) => {
@@ -241,7 +292,7 @@ export function AdminDashboard() {
         books: { id: newId("book"), slug: "new-book", title: "New book", category: "", price: "", availability: "coming-soon", purchaseUrl: "", retailers: [], downloadUrl: "", cover: "", gallery: [], shortDescription: "", description: "", published: false } satisfies CmsBook,
         news: { id: newId("news"), slug: "new-update", title: "New update", date: new Date().toISOString().slice(0, 10), excerpt: "", body: "", image: "", gallery: [], published: false } satisfies CmsNewsItem,
         events: { id: newId("event"), title: "New event", date: "", location: "", description: "", image: "", gallery: [], published: false } satisfies CmsEvent,
-        media: { id: newId("media"), title: "New media item", type: "Interview", outlet: "", date: "", summary: "", image: "", gallery: [], published: false } satisfies CmsMediaItem,
+        media: { id: newId("media"), title: "New media item", type: "Interview", outlet: "", date: "", summary: "", mediaUrl: "", mediaCtaLabel: "Watch or listen", image: "", gallery: [], published: false } satisfies CmsMediaItem,
       }[collection];
       return { ...current, [collection]: [...current[collection], entry] } as CmsContent;
     });
@@ -251,9 +302,30 @@ export function AdminDashboard() {
 
   async function save() {
     if (!content) return false;
+    if (!homepageStatsFitLayout(content.settings)) {
+      setNotice({ kind: "error", message: "A homepage statistic exceeds its layout-safe character limit." });
+      return false;
+    }
+    if (
+      content.settings.heroNewsletterTitle.length > HERO_NEWSLETTER_LIMITS.heroNewsletterTitle ||
+      content.settings.heroNewsletterCopy.length > HERO_NEWSLETTER_LIMITS.heroNewsletterCopy ||
+      content.settings.heroNewsletterCtaLabel.length > HERO_NEWSLETTER_LIMITS.heroNewsletterCtaLabel
+    ) {
+      setNotice({ kind: "error", message: "The hero newsletter card exceeds its layout-safe character limit." });
+      return false;
+    }
+    const invalidExternalUrl = [
+      content.settings.newsletterExternalUrl,
+      ...content.settings.socialLinks.map((link) => link.url),
+      ...content.media.map((item) => item.mediaUrl),
+    ].find((url) => url.trim() && !/^https?:\/\//i.test(url));
+    if (invalidExternalUrl) {
+      setNotice({ kind: "error", message: "External newsletter, social, and media links must begin with http:// or https://." });
+      return false;
+    }
     const featuredBook = content.books.find((book) => book.id === content.settings.heroFeatureBookId);
-    if (content.settings.heroFeatureEnabled && (!featuredBook || !featuredBook.published)) {
-      setNotice({ kind: "error", message: "Choose a published book for the homepage hero promotion, or disable the promotion." });
+    if (content.settings.heroPromotionType === "book" && (!featuredBook || !featuredBook.published)) {
+      setNotice({ kind: "error", message: "Choose a published book for the homepage hero promotion, or select another card type." });
       return false;
     }
     const incompleteBook = content.books.find((book) => book.published && ((book.availability === "paid" && !(book.retailers ?? []).some((retailer) => retailer.name.trim() && /^https?:\/\//i.test(retailer.url))) || (book.availability === "free" && !book.downloadUrl.trim())));
@@ -395,6 +467,7 @@ export function AdminDashboard() {
           {tab === "media" && <section><CollectionHeader title="Media + Press" copy="Manage interviews, press features, podcast appearances, and speaking coverage." onAdd={() => addItem("media")} /><AdminTable headers={["Feature", "Type", "Outlet", "Status", "Actions"]} empty="No media or press items have been added yet." rows={content.media.map((item, index) => ({ id: item.id, cells: [<TableIdentity key="media" image={item.image} title={item.title} detail={item.date || "No date"} />, item.type || "—", item.outlet || "—", <StatusBadge key="status" published={item.published} />, <TableActions key="actions" onEdit={() => setEditing((current) => ({ ...current, media: index }))} onDelete={() => removeItem("media", index)} />] }))} />
             {editing.media !== null && content.media[editing.media] && <div className="mt-7"><EditorCard title={content.media[editing.media].title} subtitle={content.media[editing.media].published ? "Published" : "Draft"} onDelete={() => removeItem("media", editing.media as number)} onClose={() => setEditing((current) => ({ ...current, media: null }))} onSave={() => void saveAndClose("media")} saving={saving}>
               <Field label="Title" value={content.media[editing.media].title} onChange={(value) => updateItem("media", editing.media as number, { title: value })} /><Field label="Type" value={content.media[editing.media].type} onChange={(value) => updateItem("media", editing.media as number, { type: value })} /><Field label="Outlet" value={content.media[editing.media].outlet} onChange={(value) => updateItem("media", editing.media as number, { outlet: value })} /><Field label="Date" type="date" value={content.media[editing.media].date} onChange={(value) => updateItem("media", editing.media as number, { date: value })} /><div className="sm:col-span-2"><TextareaField label="Summary" rows={6} value={content.media[editing.media].summary} onChange={(value) => updateItem("media", editing.media as number, { summary: value })} /></div><div className="sm:col-span-2"><AdminImageUploader label="Media or press image" images={content.media[editing.media].image ? [content.media[editing.media].image] : []} onChange={(images) => updateItem("media", editing.media as number, { image: images[0] ?? "" })} /></div><div className="sm:col-span-2"><AdminImageUploader label="Media gallery" multiple images={content.media[editing.media].gallery ?? []} onChange={(gallery) => updateItem("media", editing.media as number, { gallery })} /></div><div className="sm:col-span-2"><PublishedToggle checked={content.media[editing.media].published} onChange={(published) => updateItem("media", editing.media as number, { published })} /></div>
+              <div className="sm:col-span-2 grid gap-5 rounded-xl border border-charcoal/10 bg-white p-5 sm:grid-cols-2"><Field label="Watch or listen URL" type="url" placeholder="https://youtube.com/…" value={content.media[editing.media].mediaUrl ?? ""} onChange={(value) => updateItem("media", editing.media as number, { mediaUrl: value })} /><Field label="Link button label" placeholder="Watch episode" value={content.media[editing.media].mediaCtaLabel ?? ""} onChange={(value) => updateItem("media", editing.media as number, { mediaCtaLabel: value })} /></div>
             </EditorCard></div>}
           </section>}
 
@@ -413,10 +486,42 @@ export function AdminDashboard() {
             <div className="sm:col-span-2"><TextareaField label="Hero biography" rows={6} value={content.settings.heroBio} onChange={(value) => updateSettings("heroBio", value)} /></div>
             <div className="sm:col-span-2"><TextareaField label="Homepage about headline" value={content.settings.aboutHeading} onChange={(value) => updateSettings("aboutHeading", value)} /></div>
             <div className="sm:col-span-2"><TextareaField label="Homepage about introduction" value={content.settings.aboutIntro} onChange={(value) => updateSettings("aboutIntro", value)} /></div>
+            <div className="sm:col-span-2 rounded-2xl border border-charcoal/10 bg-white p-5 sm:p-6">
+              <div><p className="font-display text-2xl">Homepage sections</p><p className="mt-1 text-sm leading-6 text-charcoal/55">Drag blocks into a new order or hide an entire block. Section layouts remain locked.</p></div>
+              <div className="mt-6 space-y-2 border-t border-charcoal/10 pt-6">
+                {content.settings.homepageSections.map((section, index) => (
+                  <div key={section.id} onDragOver={(event) => event.preventDefault()} onDrop={() => dropHomepageSection(section.id)} className={`flex items-center gap-3 rounded-xl border px-3 py-3 transition ${draggedHomepageSection === section.id ? "border-burgundy/40 bg-dusty-rose/15 opacity-60" : "border-charcoal/10 bg-[#fffdf9]"}`}>
+                    <button type="button" draggable onDragStart={() => setDraggedHomepageSection(section.id)} onDragEnd={() => setDraggedHomepageSection(null)} className="cursor-grab rounded-lg p-2 text-charcoal/35 hover:bg-charcoal/5 hover:text-charcoal active:cursor-grabbing" aria-label={`Drag ${homepageSectionLabels[section.id]}`}><GripVertical className="size-5" /></button>
+                    <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold normal-case tracking-normal text-charcoal">{homepageSectionLabels[section.id]}</p><p className="mt-0.5 text-xs normal-case tracking-normal text-charcoal/45">Position {index + 1}</p></div>
+                    <div className="flex items-center gap-1">
+                      <button type="button" disabled={index === 0} onClick={() => moveHomepageSection(section.id, index - 1)} className="rounded-lg p-2 text-charcoal/45 hover:bg-charcoal/5 disabled:opacity-25" aria-label={`Move ${homepageSectionLabels[section.id]} up`}><ChevronUp className="size-4" /></button>
+                      <button type="button" disabled={index === content.settings.homepageSections.length - 1} onClick={() => moveHomepageSection(section.id, index + 1)} className="rounded-lg p-2 text-charcoal/45 hover:bg-charcoal/5 disabled:opacity-25" aria-label={`Move ${homepageSectionLabels[section.id]} down`}><ChevronDown className="size-4" /></button>
+                      <button type="button" onClick={() => toggleHomepageSection(section.id)} className={`ml-1 inline-flex min-w-24 items-center justify-center gap-2 rounded-full px-3 py-2 text-xs font-semibold normal-case tracking-normal ${section.enabled ? "bg-emerald-50 text-emerald-700" : "bg-charcoal/5 text-charcoal/50"}`}>{section.enabled ? <Eye className="size-4" /> : <EyeOff className="size-4" />}{section.enabled ? "Visible" : "Hidden"}</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="sm:col-span-2 rounded-2xl border border-charcoal/10 bg-white p-5 sm:p-6">
+              <div><p className="font-display text-2xl">Homepage statistics</p><p className="mt-1 text-sm leading-6 text-charcoal/55">Edit every number, heading, and description shown beside Keisha’s homepage portrait.</p></div>
+              <div className="mt-6 grid gap-5 border-t border-charcoal/10 pt-6 sm:grid-cols-2">
+                <Field label="First statistic number" maxLength={HOMEPAGE_STAT_LIMITS.homepageStatOneValue} value={content.settings.homepageStatOneValue} onChange={(value) => updateSettings("homepageStatOneValue", value)} />
+                <Field label="First statistic heading" maxLength={HOMEPAGE_STAT_LIMITS.homepageStatOneTitle} value={content.settings.homepageStatOneTitle} onChange={(value) => updateSettings("homepageStatOneTitle", value)} />
+                <div className="sm:col-span-2"><TextareaField label="First statistic description" rows={3} maxLength={HOMEPAGE_STAT_LIMITS.homepageStatOneDescription} value={content.settings.homepageStatOneDescription} onChange={(value) => updateSettings("homepageStatOneDescription", value)} /></div>
+                <div className="sm:col-span-2 my-1 border-t border-charcoal/10" />
+                <Field label="Second statistic number" maxLength={HOMEPAGE_STAT_LIMITS.homepageStatTwoValue} value={content.settings.homepageStatTwoValue} onChange={(value) => updateSettings("homepageStatTwoValue", value)} />
+                <Field label="Second statistic heading" maxLength={HOMEPAGE_STAT_LIMITS.homepageStatTwoTitle} value={content.settings.homepageStatTwoTitle} onChange={(value) => updateSettings("homepageStatTwoTitle", value)} />
+                <div className="sm:col-span-2"><TextareaField label="Second statistic description" rows={3} maxLength={HOMEPAGE_STAT_LIMITS.homepageStatTwoDescription} value={content.settings.homepageStatTwoDescription} onChange={(value) => updateSettings("homepageStatTwoDescription", value)} /></div>
+              </div>
+            </div>
             <div className="sm:col-span-2"><Field label="Newsletter headline" value={content.settings.newsletterTitle} onChange={(value) => updateSettings("newsletterTitle", value)} /></div>
             <div className="sm:col-span-2"><TextareaField label="Newsletter description" value={content.settings.newsletterCopy} onChange={(value) => updateSettings("newsletterCopy", value)} /></div>
-            <div className="sm:col-span-2 rounded-2xl border border-charcoal/10 bg-white p-5 sm:p-6"><div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center"><div><p className="font-display text-2xl">Hero book promotion</p><p className="mt-1 text-sm leading-6 text-charcoal/55">Control the signed-copy card displayed at the bottom of the homepage hero.</p></div><label className="inline-flex cursor-pointer items-center gap-3 text-sm font-semibold text-charcoal"><input className="size-4 accent-burgundy" type="checkbox" checked={content.settings.heroFeatureEnabled} onChange={(event) => updateSettings("heroFeatureEnabled", event.target.checked)} />Enabled</label></div>
-              {content.settings.heroFeatureEnabled && <div className="mt-6 grid gap-5 border-t border-charcoal/10 pt-6 sm:grid-cols-2"><label className={labelClass}>Featured book<select className={inputClass} value={content.settings.heroFeatureBookId} onChange={(event) => updateSettings("heroFeatureBookId", event.target.value)}><option value="">Choose a published book</option>{content.books.filter((book) => book.published).map((book) => <option key={book.id} value={book.id}>{book.title}</option>)}</select></label><Field label="Eyebrow text" value={content.settings.heroFeatureEyebrow} onChange={(value) => updateSettings("heroFeatureEyebrow", value)} /><div className="sm:col-span-2"><Field label="Button label" value={content.settings.heroFeatureCtaLabel} onChange={(value) => updateSettings("heroFeatureCtaLabel", value)} /></div></div>}
+            <div className="sm:col-span-2 rounded-2xl border border-charcoal/10 bg-white p-5 sm:p-6"><div><p className="font-display text-2xl">Newsletter signup destination</p><p className="mt-1 text-sm leading-6 text-charcoal/55">Leave the URL empty to collect subscribers in this admin. Add a Mailchimp, Substack, ConvertKit, or other signup URL to send readers there instead.</p></div><div className="mt-6 grid gap-5 border-t border-charcoal/10 pt-6 sm:grid-cols-2"><Field label="External signup URL" type="url" placeholder="https://…" value={content.settings.newsletterExternalUrl} onChange={(value) => updateSettings("newsletterExternalUrl", value)} /><Field label="Signup button label" value={content.settings.newsletterExternalLabel} onChange={(value) => updateSettings("newsletterExternalLabel", value)} /></div></div>
+            <div className="sm:col-span-2 rounded-2xl border border-charcoal/10 bg-white p-5 sm:p-6"><div className="flex items-start justify-between gap-4"><div><p className="font-display text-2xl">Social media links</p><p className="mt-1 text-sm leading-6 text-charcoal/55">These profiles appear in the navigation and footer.</p></div><button type="button" onClick={() => updateSettings("socialLinks", [...content.settings.socialLinks, { id: newId("social"), platform: "Instagram", url: "" } satisfies CmsSocialLink])} className="inline-flex shrink-0 items-center gap-2 rounded-full bg-charcoal px-4 py-2 text-xs font-semibold text-cream"><Plus className="size-4" />Add link</button></div><div className="mt-6 space-y-4 border-t border-charcoal/10 pt-6">{content.settings.socialLinks.map((social, index) => <div key={social.id} className="grid gap-4 rounded-xl border border-charcoal/10 bg-[#fffdf9] p-4 sm:grid-cols-[11rem_1fr_auto] sm:items-end"><label className={labelClass}>Platform<select className={inputClass} value={social.platform} onChange={(event) => updateSettings("socialLinks", content.settings.socialLinks.map((item, itemIndex) => itemIndex === index ? { ...item, platform: event.target.value as CmsSocialLink["platform"] } : item))}>{["Instagram", "Facebook", "YouTube", "TikTok", "LinkedIn", "X", "Other"].map((platform) => <option key={platform}>{platform}</option>)}</select></label><Field label="Profile URL" type="url" placeholder="https://…" value={social.url} onChange={(value) => updateSettings("socialLinks", content.settings.socialLinks.map((item, itemIndex) => itemIndex === index ? { ...item, url: value } : item))} /><button type="button" onClick={() => updateSettings("socialLinks", content.settings.socialLinks.filter((_, itemIndex) => itemIndex !== index))} className="mb-0.5 grid size-11 place-items-center rounded-xl border border-red-200 text-red-700 hover:bg-red-50" aria-label={`Remove ${social.platform}`}><Trash2 className="size-4" /></button></div>)}{content.settings.socialLinks.length === 0 && <p className="rounded-xl border border-dashed border-charcoal/15 px-5 py-8 text-center text-sm normal-case tracking-normal text-charcoal/45">No social profiles are shown.</p>}</div></div>
+            <div className="sm:col-span-2 rounded-2xl border border-charcoal/10 bg-white p-5 sm:p-6"><div><p className="font-display text-2xl">Hero promotion card</p><p className="mt-1 text-sm leading-6 text-charcoal/55">Choose one card for the homepage hero. The book and newsletter cards can never appear together.</p></div>
+              <div className="mt-6 border-t border-charcoal/10 pt-6"><label className={labelClass}>Card shown<select className={inputClass} value={content.settings.heroPromotionType} onChange={(event) => updateSettings("heroPromotionType", event.target.value as CmsSettings["heroPromotionType"])}><option value="book">Featured book</option><option value="newsletter">Newsletter signup</option><option value="none">Hidden</option></select></label></div>
+              {content.settings.heroPromotionType === "book" && <div className="mt-6 grid gap-5 rounded-xl bg-[#fffaf1] p-5 sm:grid-cols-2"><label className={labelClass}>Featured book<select className={inputClass} value={content.settings.heroFeatureBookId} onChange={(event) => updateSettings("heroFeatureBookId", event.target.value)}><option value="">Choose a published book</option>{content.books.filter((book) => book.published).map((book) => <option key={book.id} value={book.id}>{book.title}</option>)}</select></label><Field label="Eyebrow text" value={content.settings.heroFeatureEyebrow} onChange={(value) => updateSettings("heroFeatureEyebrow", value)} /><div className="sm:col-span-2"><Field label="Button label" value={content.settings.heroFeatureCtaLabel} onChange={(value) => updateSettings("heroFeatureCtaLabel", value)} /></div></div>}
+              {content.settings.heroPromotionType === "newsletter" && <div className="mt-6 grid gap-5 rounded-xl bg-[#fffaf1] p-5 sm:grid-cols-2"><div className="sm:col-span-2"><Field label="Newsletter card headline" maxLength={HERO_NEWSLETTER_LIMITS.heroNewsletterTitle} value={content.settings.heroNewsletterTitle} onChange={(value) => updateSettings("heroNewsletterTitle", value)} /></div><div className="sm:col-span-2"><TextareaField label="Newsletter card description" rows={4} maxLength={HERO_NEWSLETTER_LIMITS.heroNewsletterCopy} value={content.settings.heroNewsletterCopy} onChange={(value) => updateSettings("heroNewsletterCopy", value)} /></div><div className="sm:col-span-2"><Field label="Signup button label" maxLength={HERO_NEWSLETTER_LIMITS.heroNewsletterCtaLabel} value={content.settings.heroNewsletterCtaLabel} onChange={(value) => updateSettings("heroNewsletterCtaLabel", value)} /></div><p className="sm:col-span-2 text-xs font-medium normal-case leading-5 tracking-normal text-charcoal/50">The card uses the newsletter destination configured above. With no external URL, signups are collected in this admin.</p></div>}
             </div>
             <div className="sm:col-span-2"><AdminImageUploader label="Homepage hero image" images={content.settings.heroImage ? [content.settings.heroImage] : []} onChange={(images) => updateSettings("heroImage", images[0] ?? "")} /></div>
             <div className="sm:col-span-2"><AdminImageUploader label="Homepage about image" images={content.settings.aboutImage ? [content.settings.aboutImage] : []} onChange={(images) => updateSettings("aboutImage", images[0] ?? "")} /></div>

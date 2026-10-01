@@ -5,17 +5,50 @@
     "heroTitle": "Stories beyond",
     "heroAccent": "the expected.",
     "heroBio": "Keisha ‘WriteNow’ Allen is a freelance and contemporary fiction author who hails from the vibrant city of Miami, Florida. A project manager by day, Keisha is also a phenomenal singer and speaker. She credits a rediscovery of writing for saving her life.",
-    "aboutHeading": "Through her voice, stories unfold with humor, heart, and a profound message.",
+    "aboutHeading": "A writer, Publisher,\nand Storyteller Creating\nBeyond the Expected",
     "aboutIntro": "A project manager by day and a storyteller by calling, Keisha credits the rediscovery of writing with saving her life.",
+    "homepageStatOneValue": "25+",
+    "homepageStatOneTitle": "Years of finding the story",
+    "homepageStatOneDescription": "In music, laughter, friendship, travel, and the beautifully unexpected.",
+    "homepageStatTwoValue": "02",
+    "homepageStatTwoTitle": "Published novels",
+    "homepageStatTwoDescription": "One unforgettable world of love and becoming.",
+    "homepageSections": [
+      { "id": "hero", "enabled": true },
+      { "id": "about", "enabled": true },
+      { "id": "books", "enabled": true },
+      { "id": "creative", "enabled": true },
+      { "id": "featured-book", "enabled": true },
+      { "id": "connect", "enabled": true },
+      { "id": "newsletter", "enabled": true }
+    ],
     "newsletterTitle": "Fresh stories, book news, and inspiration for your inbox.",
     "newsletterCopy": "Join Keisha’s reading circle for occasional updates about new releases, appearances, and the creative journey.",
+    "newsletterExternalUrl": "",
+    "newsletterExternalLabel": "Join the newsletter",
+    "socialLinks": [
+      {
+        "id": "instagram",
+        "platform": "Instagram",
+        "url": "https://www.instagram.com/kreative_kreations_publishing?stkn=NWFna2UxN2ZzYnpr&utm_source=qr"
+      },
+      {
+        "id": "facebook",
+        "platform": "Facebook",
+        "url": "https://www.facebook.com/share/1J6w7TJbXT/?mibextid=wwXIfr"
+      }
+    ],
     "contactEmail": "hello@keishawritenowallen.com",
     "heroImage": "/images/pic.jpeg",
     "aboutImage": "/images/keisha-profile-c.png",
     "heroFeatureEnabled": true,
+    "heroPromotionType": "book",
     "heroFeatureBookId": "the-love-enthusiast",
     "heroFeatureEyebrow": "Order a signed copy today",
-    "heroFeatureCtaLabel": "View the book"
+    "heroFeatureCtaLabel": "View the book",
+    "heroNewsletterTitle": "GET THE STORIES FIRST.",
+    "heroNewsletterCopy": "Join my mailing list for exclusive stories, new releases, behind-the-scenes updates, and special surprises.",
+    "heroNewsletterCtaLabel": "Join the mailing list"
   },
   "books": [
     {
@@ -77,6 +110,8 @@
       "outlet": "Kreative Kreations Publishing TV",
       "date": "",
       "summary": "Keisha talks about discovering your purpose, creative work, and the journey back to writing.",
+      "mediaUrl": "",
+      "mediaCtaLabel": "Watch or listen",
       "image": "/images/keisha-profile-c.png",
       "gallery": [],
       "published": true
