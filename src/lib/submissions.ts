@@ -74,25 +74,40 @@ async function addSubscriberToActiveStore(subscriber: NewsletterSubscriber) {
   if (database) {
     await ensureMongoIndexes(database);
     const collection = database.collection<NewsletterSubscriber>("newsletter_subscribers");
+    const existing = await collection.findOne({ email: subscriber.email });
+    if (existing?.status === "active") {
+      return { subscriber: existing, existed: true, alreadySubscribed: true };
+    }
     const result = await collection.updateOne(
       { email: subscriber.email },
-      { $set: { status: "active", source: subscriber.source }, $setOnInsert: subscriber },
+      {
+        $set: { status: "active", source: subscriber.source },
+        $setOnInsert: {
+          id: subscriber.id,
+          email: subscriber.email,
+          note: subscriber.note,
+          createdAt: subscriber.createdAt,
+        },
+      },
       { upsert: true },
     );
     const saved = await collection.findOne({ email: subscriber.email });
-    return { subscriber: saved as NewsletterSubscriber, existed: result.upsertedCount === 0 };
+    return { subscriber: saved as NewsletterSubscriber, existed: result.upsertedCount === 0, alreadySubscribed: false };
   }
   return queuedMutation(async (submissions) => {
     const existing = submissions.subscribers.find((item) => item.email.toLowerCase() === subscriber.email.toLowerCase());
     if (existing) {
+      if (existing.status === "active") {
+        return { subscriber: existing, existed: true, alreadySubscribed: true };
+      }
       existing.status = "active";
       existing.source = subscriber.source;
       await writeSubmissions(submissions);
-      return { subscriber: existing, existed: true };
+      return { subscriber: existing, existed: true, alreadySubscribed: false };
     }
     submissions.subscribers.unshift(subscriber);
     await writeSubmissions(submissions);
-    return { subscriber, existed: false };
+    return { subscriber, existed: false, alreadySubscribed: false };
   });
 }
 

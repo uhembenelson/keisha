@@ -14,6 +14,14 @@ export async function POST(request: Request) {
   const source = typeof body?.source === "string" ? body.source.slice(0, 80) : "Website newsletter form";
   if (!emailPattern.test(email) || email.length > 254) return Response.json({ error: "Enter a valid email address." }, { status: 400 });
 
-  const result = await addSubscriber({ id: randomUUID(), email, source, status: "active", note: "", createdAt: new Date().toISOString() });
-  return Response.json({ ok: true, existed: result.existed }, { status: result.existed ? 200 : 201 });
+  try {
+    const result = await addSubscriber({ id: randomUUID(), email, source, status: "active", note: "", createdAt: new Date().toISOString() });
+    if (result.alreadySubscribed) {
+      return Response.json({ error: "This email is already subscribed to the newsletter." }, { status: 409 });
+    }
+    return Response.json({ ok: true, existed: result.existed }, { status: result.existed ? 200 : 201 });
+  } catch (error) {
+    console.error("Newsletter signup failed", error);
+    return Response.json({ error: "We could not add you to the newsletter right now. Please try again." }, { status: 500 });
+  }
 }

@@ -33,7 +33,13 @@ export function NewsletterForm({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email: formData.get("email"), website: formData.get("website"), source: source || (pathname === "/news" ? "News page" : "Homepage") }),
       });
-      const result = (await response.json()) as { error?: string };
+      const responseText = await response.text();
+      let result: { error?: string };
+      try {
+        result = JSON.parse(responseText) as { error?: string };
+      } catch {
+        throw new Error(response.ok ? "The signup service returned an invalid response." : `The signup service is unavailable (${response.status}).`);
+      }
       if (!response.ok) throw new Error(result.error || "We could not add you to the list.");
       form.reset();
       setSubscribed(true);
