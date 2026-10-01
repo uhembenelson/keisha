@@ -15,8 +15,8 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ContactForm } from "@/components/contact-form";
 import { Navbar } from "@/components/navbar";
-import { NewsletterForm } from "@/components/newsletter-form";
 import { NewsletterSignup } from "@/components/newsletter-signup";
+import { HeroNewsletterCard } from "@/components/hero-newsletter-card";
 import { SiteFooter } from "@/components/site-footer";
 import { getCmsContent } from "@/lib/cms";
 import { BookAction } from "@/components/book-action";
@@ -116,20 +116,7 @@ export default async function Home() {
                 <Link href={`/books/${heroFeatureBook.slug}`} className="mt-auto inline-flex w-fit items-center gap-2 bg-burgundy px-5 py-2.5 text-sm font-semibold text-cream transition-colors hover:bg-charcoal">{cms.settings.heroFeatureCtaLabel} <ArrowUpRight className="size-4" /></Link>
               </div>
             </article>}
-            {heroNewsletterVisible && <article className="grid min-h-[15.5rem] grid-cols-[0.68fr_1.32fr] bg-cream text-charcoal shadow-2xl shadow-black/25">
-              <div className="m-3 mr-0 flex flex-col justify-between bg-burgundy p-5 text-cream">
-                <Mail className="size-8 text-gold" />
-                <p className="font-display text-2xl leading-tight">The WriteNow Letter</p>
-              </div>
-              <div className="flex flex-col p-5 sm:p-6">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-burgundy">Newsletter exclusive</p>
-                <h2 className="mt-2 font-display text-2xl font-semibold leading-[0.94] sm:text-3xl">{cms.settings.heroNewsletterTitle}</h2>
-                <p className="mt-3 line-clamp-3 text-sm leading-5 text-charcoal/75">{cms.settings.heroNewsletterCopy}</p>
-                <div className="mt-4">
-                  {cms.settings.newsletterExternalUrl ? <a href={cms.settings.newsletterExternalUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 bg-burgundy px-4 py-2.5 text-xs font-semibold text-cream transition-colors hover:bg-charcoal">{cms.settings.heroNewsletterCtaLabel} <ArrowUpRight className="size-4" /></a> : <NewsletterForm variant="light" compact source="Homepage hero newsletter" submitLabel={cms.settings.heroNewsletterCtaLabel} />}
-                </div>
-              </div>
-            </article>}
+            {heroNewsletterVisible && <HeroNewsletterCard title={cms.settings.heroNewsletterTitle} copy={cms.settings.heroNewsletterCopy} ctaLabel={cms.settings.heroNewsletterCtaLabel} externalUrl={cms.settings.newsletterExternalUrl} />}
 
             <div className="max-w-xl justify-self-end border-t border-cream/35 pt-6 lg:mb-1">
               <p className="line-clamp-3 text-base font-normal leading-relaxed text-cream/95 sm:text-lg sm:leading-8">{cms.settings.heroBio}</p>

@@ -2,7 +2,7 @@
 
 import { FormEvent, useId, useState } from "react";
 import { usePathname } from "next/navigation";
-import { ArrowUpRight, Check, LoaderCircle } from "lucide-react";
+import { ArrowUpRight, Check, LoaderCircle, Mail } from "lucide-react";
 
 export function NewsletterForm({
   variant = "dark",
@@ -51,9 +51,8 @@ export function NewsletterForm({
   return (
     <form onSubmit={handleSubmit} className={`flex max-w-xl flex-col flex-wrap gap-3 ${compact ? "" : "sm:flex-row"}`}>
       <label className="absolute -left-[9999px]" aria-hidden="true">Website<input name="website" tabIndex={-1} autoComplete="off" /></label>
-      <label className="sr-only" htmlFor={emailId}>Email address</label>
-      <input id={emailId} name="email" type="email" required autoComplete="email" placeholder="Your email address" className={`min-w-0 flex-1 border px-4 outline-none ${compact ? "h-10 text-sm" : "h-12 text-base"} ${variant === "light" ? "border-charcoal/20 bg-white text-charcoal placeholder:text-charcoal/40 focus:border-burgundy" : "border-cream/25 bg-cream/8 text-cream placeholder:text-cream/50 focus:border-gold"}`} />
-      <button type="submit" disabled={pending} className={`inline-flex items-center justify-center gap-2 bg-gold font-semibold text-charcoal transition-colors disabled:opacity-60 ${compact ? "h-10 px-4 text-xs" : "h-12 px-6 text-sm"} ${variant === "light" ? "hover:bg-charcoal hover:text-cream" : "hover:bg-cream"}`}>
+      {variant === "light" && compact ? <label className="block text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-charcoal/55" htmlFor={emailId}>Email address<span className="relative mt-1.5 block"><Mail className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-burgundy/50" /><input id={emailId} name="email" type="email" required autoComplete="email" placeholder="you@example.com" className="h-10 w-full rounded-xl border border-charcoal/15 bg-white pl-10 pr-3 text-sm font-normal normal-case tracking-normal text-charcoal outline-none transition placeholder:text-charcoal/35 focus:border-burgundy focus:ring-2 focus:ring-burgundy/10" /></span></label> : <><label className="sr-only" htmlFor={emailId}>Email address</label><input id={emailId} name="email" type="email" required autoComplete="email" placeholder="Your email address" className={`min-w-0 flex-1 border px-4 outline-none ${compact ? "h-10 text-sm" : "h-12 text-base"} ${variant === "light" ? "border-charcoal/20 bg-white text-charcoal placeholder:text-charcoal/40 focus:border-burgundy" : "border-cream/25 bg-cream/8 text-cream placeholder:text-cream/50 focus:border-gold"}`} /></>}
+      <button type="submit" disabled={pending} className={`inline-flex items-center justify-center gap-2 font-semibold transition-colors disabled:opacity-60 ${compact ? "h-10 px-4 text-xs" : "h-12 px-6 text-sm"} ${variant === "light" ? "rounded-xl bg-burgundy text-cream hover:bg-charcoal" : "bg-gold text-charcoal hover:bg-cream"}`}>
         {pending ? <><LoaderCircle className="size-4 animate-spin" /> Joining…</> : <>{submitLabel} <ArrowUpRight className="size-4" /></>}
       </button>
       {error && <p role="alert" className={`w-full text-sm font-semibold ${variant === "light" ? "text-burgundy" : "text-gold"}`}>{error}</p>}
