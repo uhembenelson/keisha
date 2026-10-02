@@ -36,15 +36,17 @@ import type {
   CmsContent,
   CmsEvent,
   CmsHomepageSectionId,
+  CmsMediaCategory,
   CmsMediaItem,
   CmsNewsItem,
   CmsSettings,
   CmsSocialLink,
   CmsSubmissions,
 } from "@/lib/cms-types";
-import { HERO_NEWSLETTER_LIMITS, HOMEPAGE_STAT_LIMITS, homepageStatsFitLayout } from "@/lib/cms-types";
+import { CMS_MEDIA_CATEGORIES, HERO_NEWSLETTER_LIMITS, HOMEPAGE_STAT_LIMITS, homepageStatsFitLayout } from "@/lib/cms-types";
 import { AdminImageUploader } from "@/components/admin-image-uploader";
 import { AdminBookFileUploader } from "@/components/admin-book-file-uploader";
+import { SocialIcon } from "@/components/social-icon";
 
 type Tab = "overview" | "books" | "news" | "events" | "media" | "inquiries" | "subscribers" | "settings";
 type CollectionKey = "books" | "news" | "events" | "media";
@@ -68,6 +70,16 @@ const homepageSectionLabels: Record<CmsHomepageSectionId, string> = {
   "featured-book": "Featured book",
   connect: "Connect & contact",
   newsletter: "Newsletter",
+};
+
+const mediaCategoryActionLabels: Record<CmsMediaCategory, string> = {
+  Interviews: "Watch interview",
+  Features: "Read feature",
+  Appearances: "View appearance",
+  Videos: "Watch video",
+  "Podcast / vlogcast": "Listen or watch",
+  "Press release": "Read press release",
+  "Press kit": "Open press kit",
 };
 
 const inputClass =
@@ -135,6 +147,36 @@ function TextareaField({
         onChange={(event) => onChange(event.target.value)}
       />
     </label>
+  );
+}
+
+function SettingsEditorCard({
+  id,
+  number,
+  title,
+  description,
+  children,
+  defaultOpen = false,
+}: {
+  id: string;
+  number?: number;
+  title: string;
+  description: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
+  return (
+    <details id={id} open={defaultOpen} className="group scroll-mt-28 rounded-2xl border border-charcoal/10 bg-white shadow-sm">
+      <summary className="flex cursor-pointer list-none items-center gap-4 p-5 marker:hidden sm:p-6 [&::-webkit-details-marker]:hidden">
+        {number ? <span className="grid size-9 shrink-0 place-items-center rounded-full bg-burgundy text-sm font-bold text-cream">{number}</span> : null}
+        <span className="min-w-0 flex-1">
+          <span className="block font-display text-2xl text-charcoal">{title}</span>
+          <span className="mt-1 block text-sm font-normal normal-case leading-6 tracking-normal text-charcoal/55">{description}</span>
+        </span>
+        <ChevronDown className="size-5 shrink-0 text-charcoal/45 transition group-open:rotate-180" />
+      </summary>
+      <div className="border-t border-charcoal/10 p-5 sm:p-6">{children}</div>
+    </details>
   );
 }
 
@@ -284,7 +326,7 @@ export function AdminDashboard() {
     setDirty(true);
   }
 
-  function addItem(collection: CollectionKey) {
+  function addItem(collection: CollectionKey, mediaCategory: CmsMediaCategory = "Interviews") {
     const nextIndex = content?.[collection].length ?? 0;
     setContent((current) => {
       if (!current) return current;
@@ -292,7 +334,7 @@ export function AdminDashboard() {
         books: { id: newId("book"), slug: "new-book", title: "New book", category: "", price: "", availability: "coming-soon", purchaseUrl: "", retailers: [], downloadUrl: "", cover: "", gallery: [], shortDescription: "", description: "", published: false } satisfies CmsBook,
         news: { id: newId("news"), slug: "new-update", title: "New update", date: new Date().toISOString().slice(0, 10), excerpt: "", body: "", image: "", gallery: [], published: false } satisfies CmsNewsItem,
         events: { id: newId("event"), title: "New event", date: "", location: "", description: "", image: "", gallery: [], published: false } satisfies CmsEvent,
-        media: { id: newId("media"), title: "New media item", type: "Interview", outlet: "", date: "", summary: "", mediaUrl: "", mediaCtaLabel: "Watch or listen", image: "", gallery: [], published: false } satisfies CmsMediaItem,
+        media: { id: newId("media"), title: `New ${mediaCategory.toLowerCase()} item`, type: mediaCategory, outlet: "", date: "", summary: "", mediaUrl: "", mediaCtaLabel: mediaCategoryActionLabels[mediaCategory], image: "", gallery: [], published: false } satisfies CmsMediaItem,
       }[collection];
       return { ...current, [collection]: [...current[collection], entry] } as CmsContent;
     });
@@ -326,6 +368,12 @@ export function AdminDashboard() {
     const featuredBook = content.books.find((book) => book.id === content.settings.heroFeatureBookId);
     if (content.settings.heroPromotionType === "book" && (!featuredBook || !featuredBook.published)) {
       setNotice({ kind: "error", message: "Choose a published book for the homepage hero promotion, or select another card type." });
+      return false;
+    }
+    const featuredSectionEnabled = content.settings.homepageSections.find((section) => section.id === "featured-book")?.enabled;
+    const homepageFeaturedBook = content.books.find((book) => book.id === content.settings.homepageFeaturedBookId);
+    if (featuredSectionEnabled && (!homepageFeaturedBook || !homepageFeaturedBook.published)) {
+      setNotice({ kind: "error", message: "Choose a published book for the homepage featured-book section, or hide that section." });
       return false;
     }
     const incompleteBook = content.books.find((book) => book.published && ((book.availability === "paid" && !(book.retailers ?? []).some((retailer) => retailer.name.trim() && /^https?:\/\//i.test(retailer.url))) || (book.availability === "free" && !book.downloadUrl.trim())));
@@ -464,10 +512,24 @@ export function AdminDashboard() {
             </EditorCard></div>}
           </section>}
 
-          {tab === "media" && <section><CollectionHeader title="Media + Press" copy="Manage interviews, press features, podcast appearances, and speaking coverage." onAdd={() => addItem("media")} /><AdminTable headers={["Feature", "Type", "Outlet", "Status", "Actions"]} empty="No media or press items have been added yet." rows={content.media.map((item, index) => ({ id: item.id, cells: [<TableIdentity key="media" image={item.image} title={item.title} detail={item.date || "No date"} />, item.type || "—", item.outlet || "—", <StatusBadge key="status" published={item.published} />, <TableActions key="actions" onEdit={() => setEditing((current) => ({ ...current, media: index }))} onDelete={() => removeItem("media", index)} />] }))} />
+          {tab === "media" && <section><CollectionHeader title="Media + Press" copy="Add and edit interviews, features, appearances, videos, podcasts, press releases, and press kits." onAdd={() => addItem("media")} />
+            <div className="mt-7 rounded-2xl border border-gold/35 bg-[#fff8e9] p-5 sm:p-6">
+              <div><p className="font-display text-2xl">What would you like to add?</p><p className="mt-1 text-sm leading-6 text-charcoal/55">Choose a category. A new draft will open with the correct public button text already filled in.</p></div>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {CMS_MEDIA_CATEGORIES.map((category) => <button key={category} type="button" onClick={() => addItem("media", category)} className="flex items-center justify-between gap-3 rounded-xl border border-charcoal/10 bg-white px-4 py-3 text-left text-sm font-semibold text-charcoal transition hover:border-burgundy/35 hover:text-burgundy"><span>{category}</span><span className="inline-flex items-center gap-1 text-xs text-charcoal/40"><Plus className="size-3.5" />{content.media.filter((item) => item.type === category).length}</span></button>)}
+              </div>
+            </div>
+            <AdminTable headers={["Media item", "Category", "Outlet", "Public link", "Status", "Actions"]} empty="No media or press items have been added yet." rows={content.media.map((item, index) => ({ id: item.id, cells: [<TableIdentity key="media" image={item.image} title={item.title} detail={item.date || "No date"} />, item.type || "—", item.outlet || "—", <span key="link" className={`text-xs font-semibold ${item.mediaUrl ? "text-emerald-700" : "text-charcoal/40"}`}>{item.mediaUrl ? "Link added" : "No link"}</span>, <StatusBadge key="status" published={item.published} />, <TableActions key="actions" onEdit={() => setEditing((current) => ({ ...current, media: index }))} onDelete={() => removeItem("media", index)} />] }))} />
             {editing.media !== null && content.media[editing.media] && <div className="mt-7"><EditorCard title={content.media[editing.media].title} subtitle={content.media[editing.media].published ? "Published" : "Draft"} onDelete={() => removeItem("media", editing.media as number)} onClose={() => setEditing((current) => ({ ...current, media: null }))} onSave={() => void saveAndClose("media")} saving={saving}>
-              <Field label="Title" value={content.media[editing.media].title} onChange={(value) => updateItem("media", editing.media as number, { title: value })} /><Field label="Type" value={content.media[editing.media].type} onChange={(value) => updateItem("media", editing.media as number, { type: value })} /><Field label="Outlet" value={content.media[editing.media].outlet} onChange={(value) => updateItem("media", editing.media as number, { outlet: value })} /><Field label="Date" type="date" value={content.media[editing.media].date} onChange={(value) => updateItem("media", editing.media as number, { date: value })} /><div className="sm:col-span-2"><TextareaField label="Summary" rows={6} value={content.media[editing.media].summary} onChange={(value) => updateItem("media", editing.media as number, { summary: value })} /></div><div className="sm:col-span-2"><AdminImageUploader label="Media or press image" images={content.media[editing.media].image ? [content.media[editing.media].image] : []} onChange={(images) => updateItem("media", editing.media as number, { image: images[0] ?? "" })} /></div><div className="sm:col-span-2"><AdminImageUploader label="Media gallery" multiple images={content.media[editing.media].gallery ?? []} onChange={(gallery) => updateItem("media", editing.media as number, { gallery })} /></div><div className="sm:col-span-2"><PublishedToggle checked={content.media[editing.media].published} onChange={(published) => updateItem("media", editing.media as number, { published })} /></div>
-              <div className="sm:col-span-2 grid gap-5 rounded-xl border border-charcoal/10 bg-white p-5 sm:grid-cols-2"><Field label="Watch or listen URL" type="url" placeholder="https://youtube.com/…" value={content.media[editing.media].mediaUrl ?? ""} onChange={(value) => updateItem("media", editing.media as number, { mediaUrl: value })} /><Field label="Link button label" placeholder="Watch episode" value={content.media[editing.media].mediaCtaLabel ?? ""} onChange={(value) => updateItem("media", editing.media as number, { mediaCtaLabel: value })} /></div>
+              <Field label="Public title" value={content.media[editing.media].title} onChange={(value) => updateItem("media", editing.media as number, { title: value })} />
+              <label className={labelClass}>Category<select className={inputClass} value={content.media[editing.media].type} onChange={(event) => { const type = event.target.value as CmsMediaCategory; updateItem("media", editing.media as number, { type, mediaCtaLabel: mediaCategoryActionLabels[type] }); }}>{CMS_MEDIA_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
+              <Field label="Outlet, show, or publication name" value={content.media[editing.media].outlet} onChange={(value) => updateItem("media", editing.media as number, { outlet: value })} />
+              <Field label="Published or appearance date" type="date" value={content.media[editing.media].date} onChange={(value) => updateItem("media", editing.media as number, { date: value })} />
+              <div className="sm:col-span-2 grid gap-5 rounded-xl border-2 border-gold/35 bg-[#fff8e9] p-5 sm:grid-cols-2"><div className="sm:col-span-2"><p className="font-display text-xl text-charcoal">Public watch, listen, read, or download link</p><p className="mt-1 text-xs normal-case leading-5 tracking-normal text-charcoal/55">Paste the full link readers should open. This can be YouTube, a podcast platform, an article, a press release, or a press-kit download.</p></div><Field label="Public link" type="url" placeholder="https://…" value={content.media[editing.media].mediaUrl ?? ""} onChange={(value) => updateItem("media", editing.media as number, { mediaUrl: value })} /><Field label="Button text" placeholder={mediaCategoryActionLabels[content.media[editing.media].type]} value={content.media[editing.media].mediaCtaLabel ?? ""} onChange={(value) => updateItem("media", editing.media as number, { mediaCtaLabel: value })} /></div>
+              <div className="sm:col-span-2"><TextareaField label="Public description" rows={6} value={content.media[editing.media].summary} onChange={(value) => updateItem("media", editing.media as number, { summary: value })} /></div>
+              <div className="sm:col-span-2"><AdminImageUploader label="Main image" images={content.media[editing.media].image ? [content.media[editing.media].image] : []} onChange={(images) => updateItem("media", editing.media as number, { image: images[0] ?? "" })} /></div>
+              <div className="sm:col-span-2"><AdminImageUploader label="Additional images" multiple images={content.media[editing.media].gallery ?? []} onChange={(gallery) => updateItem("media", editing.media as number, { gallery })} /></div>
+              <div className="sm:col-span-2"><PublishedToggle checked={content.media[editing.media].published} onChange={(published) => updateItem("media", editing.media as number, { published })} /></div>
             </EditorCard></div>}
           </section>}
 
@@ -479,16 +541,32 @@ export function AdminDashboard() {
             {selectedSubscriber && <article className="mt-7 rounded-2xl border border-charcoal/10 bg-[#fffdf9] p-6 shadow-sm sm:p-8"><div className="flex items-start justify-between gap-5 border-b border-charcoal/10 pb-5"><div><h3 className="break-all font-display text-3xl">{selectedSubscriber.email}</h3><p className="mt-2 text-xs text-charcoal/45">Joined {new Date(selectedSubscriber.createdAt).toLocaleString()} · {selectedSubscriber.source}</p></div><button type="button" onClick={() => setSelectedSubscriberId(null)} className="rounded-full p-2 text-charcoal/45"><X className="size-4" /></button></div><div className="mt-6 grid gap-5 sm:grid-cols-[13rem_1fr_auto] sm:items-end"><label className={labelClass}>Status<select className={inputClass} value={selectedSubscriber.status} onChange={(event) => { const status = event.target.value as typeof selectedSubscriber.status; updateSubscriber(selectedSubscriber.id, { status }); void persistSubmission("subscribers", selectedSubscriber.id, { status }); }}><option value="active">Active</option><option value="unsubscribed">Unsubscribed</option></select></label><label className={labelClass}>Private note<input className={inputClass} value={selectedSubscriber.note} onChange={(event) => updateSubscriber(selectedSubscriber.id, { note: event.target.value })} placeholder="Add a note…" /></label><button type="button" onClick={() => persistSubmission("subscribers", selectedSubscriber.id, { note: selectedSubscriber.note })} className="h-11 rounded-xl bg-charcoal px-5 text-sm font-semibold text-cream">Save note</button></div></article>}
           </section>}
 
-          {tab === "settings" && <section><div><p className="section-kicker">Global content</p><h2 className="mt-3 font-display text-4xl">Site settings</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-charcoal/60">Update the homepage voice, the About page, the newsletter invitation, and contact details.</p></div><div className="mt-7 grid gap-5 rounded-2xl border border-charcoal/10 bg-[#fffdf9] p-6 shadow-sm sm:grid-cols-2 sm:p-8">
-            <div className="sm:col-span-2"><Field label="Site name" value={content.settings.siteName} onChange={(value) => updateSettings("siteName", value)} /></div>
-            <Field label="Hero eyebrow" value={content.settings.heroEyebrow} onChange={(value) => updateSettings("heroEyebrow", value)} /><Field label="Hero headline" value={content.settings.heroTitle} onChange={(value) => updateSettings("heroTitle", value)} />
-            <Field label="Hero accent line" value={content.settings.heroAccent} onChange={(value) => updateSettings("heroAccent", value)} /><Field label="Contact email" type="email" value={content.settings.contactEmail} onChange={(value) => updateSettings("contactEmail", value)} />
-            <div className="sm:col-span-2"><TextareaField label="Hero biography" rows={6} value={content.settings.heroBio} onChange={(value) => updateSettings("heroBio", value)} /></div>
-            <div className="sm:col-span-2"><TextareaField label="Homepage about headline" value={content.settings.aboutHeading} onChange={(value) => updateSettings("aboutHeading", value)} /></div>
-            <div className="sm:col-span-2"><TextareaField label="Homepage about introduction" value={content.settings.aboutIntro} onChange={(value) => updateSettings("aboutIntro", value)} /></div>
-            <div className="sm:col-span-2 rounded-2xl border border-charcoal/10 bg-white p-5 sm:p-6">
-              <div><p className="font-display text-2xl">Homepage sections</p><p className="mt-1 text-sm leading-6 text-charcoal/55">Drag blocks into a new order or hide an entire block. Section layouts remain locked.</p></div>
-              <div className="mt-6 space-y-2 border-t border-charcoal/10 pt-6">
+          {tab === "settings" && <section><div><p className="section-kicker">Website editor</p><h2 className="mt-3 font-display text-4xl">Website content</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-charcoal/60">Choose the part of the website you want to change, update the words or images, then click <strong>Save changes</strong>.</p></div>
+          <div className="mt-7 rounded-2xl border border-gold/40 bg-[#fff8e9] p-5 sm:p-6">
+            <p className="text-sm font-bold text-burgundy">How to update the homepage</p>
+            <ol className="mt-3 grid gap-3 text-sm leading-6 text-charcoal/65 sm:grid-cols-3">
+              <li><strong className="text-charcoal">1. Choose a section</strong><br />Use the links below or scroll down.</li>
+              <li><strong className="text-charcoal">2. Edit its content</strong><br />Open a card and change only what you need.</li>
+              <li><strong className="text-charcoal">3. Save your work</strong><br />Use Save changes at the top of the screen.</li>
+            </ol>
+          </div>
+          <nav aria-label="Jump to homepage editor section" className="mt-5 flex flex-wrap gap-2">
+            {[
+              ["#homepage-arrangement", "Order & visibility"],
+              ["#homepage-hero", "Hero"],
+              ["#homepage-about", "About & numbers"],
+              ["#homepage-books", "Books"],
+              ["#homepage-creative", "Creative roles"],
+              ["#homepage-featured-book", "Featured book"],
+              ["#homepage-connect", "Connect & contact"],
+              ["#homepage-newsletter", "Newsletter"],
+              ["#website-basics", "Website & social links"],
+              ["#about-page", "About page"],
+            ].map(([href, label]) => <a key={href} href={href} className="rounded-full border border-charcoal/15 bg-white px-4 py-2 text-xs font-semibold text-charcoal transition hover:border-burgundy hover:text-burgundy">{label}</a>)}
+          </nav>
+          <div className="mt-7 grid gap-5">
+            <SettingsEditorCard id="homepage-arrangement" title="Homepage order and visibility" description="Move whole sections up or down, or hide a section without deleting its content." defaultOpen>
+              <div className="space-y-2">
                 {content.settings.homepageSections.map((section, index) => (
                   <div key={section.id} onDragOver={(event) => event.preventDefault()} onDrop={() => dropHomepageSection(section.id)} className={`flex items-center gap-3 rounded-xl border px-3 py-3 transition ${draggedHomepageSection === section.id ? "border-burgundy/40 bg-dusty-rose/15 opacity-60" : "border-charcoal/10 bg-[#fffdf9]"}`}>
                     <button type="button" draggable onDragStart={() => setDraggedHomepageSection(section.id)} onDragEnd={() => setDraggedHomepageSection(null)} className="cursor-grab rounded-lg p-2 text-charcoal/35 hover:bg-charcoal/5 hover:text-charcoal active:cursor-grabbing" aria-label={`Drag ${homepageSectionLabels[section.id]}`}><GripVertical className="size-5" /></button>
@@ -501,10 +579,27 @@ export function AdminDashboard() {
                   </div>
                 ))}
               </div>
-            </div>
-            <div className="sm:col-span-2 rounded-2xl border border-charcoal/10 bg-white p-5 sm:p-6">
-              <div><p className="font-display text-2xl">Homepage statistics</p><p className="mt-1 text-sm leading-6 text-charcoal/55">Edit every number, heading, and description shown beside Keisha’s homepage portrait.</p></div>
-              <div className="mt-6 grid gap-5 border-t border-charcoal/10 pt-6 sm:grid-cols-2">
+            </SettingsEditorCard>
+            <SettingsEditorCard id="homepage-hero" number={1} title="Hero — top of the homepage" description="Edit the first words, main background image, and the book or newsletter card visitors see first." defaultOpen>
+              <div className="grid gap-5 sm:grid-cols-2">
+                <Field label="Small text above the heading" value={content.settings.heroEyebrow} onChange={(value) => updateSettings("heroEyebrow", value)} />
+                <Field label="Main heading" value={content.settings.heroTitle} onChange={(value) => updateSettings("heroTitle", value)} />
+                <Field label="Italic line in the heading" value={content.settings.heroAccent} onChange={(value) => updateSettings("heroAccent", value)} />
+                <Field label="About button text" maxLength={30} value={content.settings.heroAboutCtaLabel} onChange={(value) => updateSettings("heroAboutCtaLabel", value)} />
+                <div className="sm:col-span-2"><TextareaField label="Short introduction on the right" rows={5} value={content.settings.heroBio} onChange={(value) => updateSettings("heroBio", value)} /></div>
+                <div className="sm:col-span-2"><AdminImageUploader label="Hero background image" images={content.settings.heroImage ? [content.settings.heroImage] : []} onChange={(images) => updateSettings("heroImage", images[0] ?? "")} /></div>
+                <div className="sm:col-span-2 rounded-xl border border-charcoal/10 bg-[#fffaf1] p-5">
+                  <p className="font-semibold text-charcoal">Card shown inside the hero</p>
+                  <p className="mt-1 text-xs normal-case leading-5 tracking-normal text-charcoal/50">Choose a signed-book card, a newsletter signup card, or hide the card completely.</p>
+                  <label className={`${labelClass} mt-5 block`}>Card type<select className={inputClass} value={content.settings.heroPromotionType} onChange={(event) => updateSettings("heroPromotionType", event.target.value as CmsSettings["heroPromotionType"])}><option value="book">Signed book</option><option value="newsletter">Newsletter signup</option><option value="none">No card</option></select></label>
+                  {content.settings.heroPromotionType === "book" && <div className="mt-5 grid gap-5 sm:grid-cols-2"><label className={labelClass}>Book to feature<select className={inputClass} value={content.settings.heroFeatureBookId} onChange={(event) => updateSettings("heroFeatureBookId", event.target.value)}><option value="">Choose a published book</option>{content.books.filter((book) => book.published).map((book) => <option key={book.id} value={book.id}>{book.title}</option>)}</select></label><Field label="Small text above book title" value={content.settings.heroFeatureEyebrow} onChange={(value) => updateSettings("heroFeatureEyebrow", value)} /><div className="sm:col-span-2"><Field label="Button text" value={content.settings.heroFeatureCtaLabel} onChange={(value) => updateSettings("heroFeatureCtaLabel", value)} /></div></div>}
+                  {content.settings.heroPromotionType === "newsletter" && <div className="mt-5 grid gap-5 sm:grid-cols-2"><div className="sm:col-span-2"><Field label="Newsletter heading" maxLength={HERO_NEWSLETTER_LIMITS.heroNewsletterTitle} value={content.settings.heroNewsletterTitle} onChange={(value) => updateSettings("heroNewsletterTitle", value)} /></div><div className="sm:col-span-2"><TextareaField label="Newsletter description" rows={4} maxLength={HERO_NEWSLETTER_LIMITS.heroNewsletterCopy} value={content.settings.heroNewsletterCopy} onChange={(value) => updateSettings("heroNewsletterCopy", value)} /></div><div className="sm:col-span-2"><Field label="Signup button text" maxLength={HERO_NEWSLETTER_LIMITS.heroNewsletterCtaLabel} value={content.settings.heroNewsletterCtaLabel} onChange={(value) => updateSettings("heroNewsletterCtaLabel", value)} /></div></div>}
+                </div>
+              </div>
+            </SettingsEditorCard>
+            <SettingsEditorCard id="homepage-about" number={2} title="About and experience numbers" description="Edit the introduction, portrait images, quote, and the two experience figures shown below the hero.">
+              <div className="grid gap-5 sm:grid-cols-2">
+                <p className="sm:col-span-2 text-xs font-bold uppercase tracking-[0.12em] text-burgundy">Experience numbers</p>
                 <Field label="First statistic number" maxLength={HOMEPAGE_STAT_LIMITS.homepageStatOneValue} value={content.settings.homepageStatOneValue} onChange={(value) => updateSettings("homepageStatOneValue", value)} />
                 <Field label="First statistic heading" maxLength={HOMEPAGE_STAT_LIMITS.homepageStatOneTitle} value={content.settings.homepageStatOneTitle} onChange={(value) => updateSettings("homepageStatOneTitle", value)} />
                 <div className="sm:col-span-2"><TextareaField label="First statistic description" rows={3} maxLength={HOMEPAGE_STAT_LIMITS.homepageStatOneDescription} value={content.settings.homepageStatOneDescription} onChange={(value) => updateSettings("homepageStatOneDescription", value)} /></div>
@@ -512,44 +607,119 @@ export function AdminDashboard() {
                 <Field label="Second statistic number" maxLength={HOMEPAGE_STAT_LIMITS.homepageStatTwoValue} value={content.settings.homepageStatTwoValue} onChange={(value) => updateSettings("homepageStatTwoValue", value)} />
                 <Field label="Second statistic heading" maxLength={HOMEPAGE_STAT_LIMITS.homepageStatTwoTitle} value={content.settings.homepageStatTwoTitle} onChange={(value) => updateSettings("homepageStatTwoTitle", value)} />
                 <div className="sm:col-span-2"><TextareaField label="Second statistic description" rows={3} maxLength={HOMEPAGE_STAT_LIMITS.homepageStatTwoDescription} value={content.settings.homepageStatTwoDescription} onChange={(value) => updateSettings("homepageStatTwoDescription", value)} /></div>
+                <div className="sm:col-span-2 my-1 border-t border-charcoal/10" />
+                <p className="sm:col-span-2 text-xs font-bold uppercase tracking-[0.12em] text-burgundy">About text and images</p>
+                <Field label="Small text above the heading" maxLength={40} value={content.settings.homepageAboutKicker} onChange={(value) => updateSettings("homepageAboutKicker", value)} />
+                <Field label="Read my story button text" maxLength={30} value={content.settings.homepageAboutCtaLabel} onChange={(value) => updateSettings("homepageAboutCtaLabel", value)} />
+                <div className="sm:col-span-2"><TextareaField label="Main heading" rows={4} maxLength={100} value={content.settings.aboutHeading} onChange={(value) => updateSettings("aboutHeading", value)} /></div>
+                <div className="sm:col-span-2"><TextareaField label="Short introduction" rows={4} maxLength={220} value={content.settings.aboutIntro} onChange={(value) => updateSettings("aboutIntro", value)} /></div>
+                <div className="sm:col-span-2"><Field label="Quote shown over the second image" maxLength={90} value={content.settings.homepageAboutQuote} onChange={(value) => updateSettings("homepageAboutQuote", value)} /></div>
+                <div className="sm:col-span-2"><AdminImageUploader label="Primary portrait" images={content.settings.aboutImage ? [content.settings.aboutImage] : []} onChange={(images) => updateSettings("aboutImage", images[0] ?? "")} /></div>
+                <div className="sm:col-span-2"><AdminImageUploader label="Secondary quote image" images={content.settings.homepageAboutSecondaryImage ? [content.settings.homepageAboutSecondaryImage] : []} onChange={(images) => updateSettings("homepageAboutSecondaryImage", images[0] ?? "")} /></div>
               </div>
-            </div>
-            <div className="sm:col-span-2"><Field label="Newsletter headline" value={content.settings.newsletterTitle} onChange={(value) => updateSettings("newsletterTitle", value)} /></div>
-            <div className="sm:col-span-2"><TextareaField label="Newsletter description" value={content.settings.newsletterCopy} onChange={(value) => updateSettings("newsletterCopy", value)} /></div>
-            <div className="sm:col-span-2 rounded-2xl border border-charcoal/10 bg-white p-5 sm:p-6"><div><p className="font-display text-2xl">Newsletter signup destination</p><p className="mt-1 text-sm leading-6 text-charcoal/55">Leave the URL empty to collect subscribers in this admin. Add a Mailchimp, Substack, ConvertKit, or other signup URL to send readers there instead.</p></div><div className="mt-6 grid gap-5 border-t border-charcoal/10 pt-6 sm:grid-cols-2"><Field label="External signup URL" type="url" placeholder="https://…" value={content.settings.newsletterExternalUrl} onChange={(value) => updateSettings("newsletterExternalUrl", value)} /><Field label="Signup button label" value={content.settings.newsletterExternalLabel} onChange={(value) => updateSettings("newsletterExternalLabel", value)} /></div></div>
-            <div className="sm:col-span-2 rounded-2xl border border-charcoal/10 bg-white p-5 sm:p-6"><div className="flex items-start justify-between gap-4"><div><p className="font-display text-2xl">Social media links</p><p className="mt-1 text-sm leading-6 text-charcoal/55">These profiles appear in the navigation and footer.</p></div><button type="button" onClick={() => updateSettings("socialLinks", [...content.settings.socialLinks, { id: newId("social"), platform: "Instagram", url: "" } satisfies CmsSocialLink])} className="inline-flex shrink-0 items-center gap-2 rounded-full bg-charcoal px-4 py-2 text-xs font-semibold text-cream"><Plus className="size-4" />Add link</button></div><div className="mt-6 space-y-4 border-t border-charcoal/10 pt-6">{content.settings.socialLinks.map((social, index) => <div key={social.id} className="grid gap-4 rounded-xl border border-charcoal/10 bg-[#fffdf9] p-4 sm:grid-cols-[11rem_1fr_auto] sm:items-end"><label className={labelClass}>Platform<select className={inputClass} value={social.platform} onChange={(event) => updateSettings("socialLinks", content.settings.socialLinks.map((item, itemIndex) => itemIndex === index ? { ...item, platform: event.target.value as CmsSocialLink["platform"] } : item))}>{["Instagram", "Facebook", "YouTube", "TikTok", "LinkedIn", "X", "Other"].map((platform) => <option key={platform}>{platform}</option>)}</select></label><Field label="Profile URL" type="url" placeholder="https://…" value={social.url} onChange={(value) => updateSettings("socialLinks", content.settings.socialLinks.map((item, itemIndex) => itemIndex === index ? { ...item, url: value } : item))} /><button type="button" onClick={() => updateSettings("socialLinks", content.settings.socialLinks.filter((_, itemIndex) => itemIndex !== index))} className="mb-0.5 grid size-11 place-items-center rounded-xl border border-red-200 text-red-700 hover:bg-red-50" aria-label={`Remove ${social.platform}`}><Trash2 className="size-4" /></button></div>)}{content.settings.socialLinks.length === 0 && <p className="rounded-xl border border-dashed border-charcoal/15 px-5 py-8 text-center text-sm normal-case tracking-normal text-charcoal/45">No social profiles are shown.</p>}</div></div>
-            <div className="sm:col-span-2 rounded-2xl border border-charcoal/10 bg-white p-5 sm:p-6"><div><p className="font-display text-2xl">Hero promotion card</p><p className="mt-1 text-sm leading-6 text-charcoal/55">Choose one card for the homepage hero. The book and newsletter cards can never appear together.</p></div>
-              <div className="mt-6 border-t border-charcoal/10 pt-6"><label className={labelClass}>Card shown<select className={inputClass} value={content.settings.heroPromotionType} onChange={(event) => updateSettings("heroPromotionType", event.target.value as CmsSettings["heroPromotionType"])}><option value="book">Featured book</option><option value="newsletter">Newsletter signup</option><option value="none">Hidden</option></select></label></div>
-              {content.settings.heroPromotionType === "book" && <div className="mt-6 grid gap-5 rounded-xl bg-[#fffaf1] p-5 sm:grid-cols-2"><label className={labelClass}>Featured book<select className={inputClass} value={content.settings.heroFeatureBookId} onChange={(event) => updateSettings("heroFeatureBookId", event.target.value)}><option value="">Choose a published book</option>{content.books.filter((book) => book.published).map((book) => <option key={book.id} value={book.id}>{book.title}</option>)}</select></label><Field label="Eyebrow text" value={content.settings.heroFeatureEyebrow} onChange={(value) => updateSettings("heroFeatureEyebrow", value)} /><div className="sm:col-span-2"><Field label="Button label" value={content.settings.heroFeatureCtaLabel} onChange={(value) => updateSettings("heroFeatureCtaLabel", value)} /></div></div>}
-              {content.settings.heroPromotionType === "newsletter" && <div className="mt-6 grid gap-5 rounded-xl bg-[#fffaf1] p-5 sm:grid-cols-2"><div className="sm:col-span-2"><Field label="Newsletter card headline" maxLength={HERO_NEWSLETTER_LIMITS.heroNewsletterTitle} value={content.settings.heroNewsletterTitle} onChange={(value) => updateSettings("heroNewsletterTitle", value)} /></div><div className="sm:col-span-2"><TextareaField label="Newsletter card description" rows={4} maxLength={HERO_NEWSLETTER_LIMITS.heroNewsletterCopy} value={content.settings.heroNewsletterCopy} onChange={(value) => updateSettings("heroNewsletterCopy", value)} /></div><div className="sm:col-span-2"><Field label="Signup button label" maxLength={HERO_NEWSLETTER_LIMITS.heroNewsletterCtaLabel} value={content.settings.heroNewsletterCtaLabel} onChange={(value) => updateSettings("heroNewsletterCtaLabel", value)} /></div><p className="sm:col-span-2 text-xs font-medium normal-case leading-5 tracking-normal text-charcoal/50">The card uses the newsletter destination configured above. With no external URL, signups are collected in this admin.</p></div>}
-            </div>
-            <div className="sm:col-span-2"><AdminImageUploader label="Homepage hero image" images={content.settings.heroImage ? [content.settings.heroImage] : []} onChange={(images) => updateSettings("heroImage", images[0] ?? "")} /></div>
-            <div className="sm:col-span-2"><AdminImageUploader label="Homepage about image" images={content.settings.aboutImage ? [content.settings.aboutImage] : []} onChange={(images) => updateSettings("aboutImage", images[0] ?? "")} /></div>
+            </SettingsEditorCard>
+            <SettingsEditorCard id="homepage-books" number={3} title="Books showcase" description="Edit the heading above the book cards. The books themselves are managed from Books in the left menu.">
+              <div className="grid gap-5 sm:grid-cols-2">
+                <Field label="Small text above the heading" maxLength={40} value={content.settings.homepageBooksKicker} onChange={(value) => updateSettings("homepageBooksKicker", value)} />
+                <Field label="View book button text" maxLength={30} value={content.settings.homepageBooksDetailCtaLabel} onChange={(value) => updateSettings("homepageBooksDetailCtaLabel", value)} />
+                <div className="sm:col-span-2"><Field label="Main heading" maxLength={80} value={content.settings.homepageBooksHeading} onChange={(value) => updateSettings("homepageBooksHeading", value)} /></div>
+                <div className="sm:col-span-2"><TextareaField label="Short introduction" rows={4} maxLength={180} value={content.settings.homepageBooksIntro} onChange={(value) => updateSettings("homepageBooksIntro", value)} /></div>
+              </div>
+            </SettingsEditorCard>
+            <SettingsEditorCard id="homepage-creative" number={4} title="Creative roles" description="Edit the four role cards. Their order and icons stay fixed so the design remains balanced.">
+              <div className="grid gap-5 sm:grid-cols-2">
+                <Field label="Small text above the heading" maxLength={40} value={content.settings.homepageCreativeKicker} onChange={(value) => updateSettings("homepageCreativeKicker", value)} />
+                <Field label="Main heading" maxLength={80} value={content.settings.homepageCreativeHeading} onChange={(value) => updateSettings("homepageCreativeHeading", value)} />
+                <div className="sm:col-span-2"><TextareaField label="Short introduction" rows={4} maxLength={180} value={content.settings.homepageCreativeIntro} onChange={(value) => updateSettings("homepageCreativeIntro", value)} /></div>
+                {content.settings.homepageCreativeRoles.map((role) => <div key={role.id} className="grid gap-4 rounded-xl border border-charcoal/10 bg-[#fffaf9] p-4"><Field label={`${role.title || "Role"} card title`} maxLength={24} value={role.title} onChange={(value) => updateSettings("homepageCreativeRoles", content.settings.homepageCreativeRoles.map((item) => item.id === role.id ? { ...item, title: value } : item))} /><TextareaField label="Card description" rows={3} maxLength={120} value={role.copy} onChange={(value) => updateSettings("homepageCreativeRoles", content.settings.homepageCreativeRoles.map((item) => item.id === role.id ? { ...item, copy: value } : item))} /></div>)}
+              </div>
+            </SettingsEditorCard>
+            <SettingsEditorCard id="homepage-featured-book" number={5} title="Large featured book" description="Choose which published book this banner opens, then edit the banner’s words and image.">
+              <div className="grid gap-5 sm:grid-cols-2">
+                <label className={labelClass}>Book this banner opens<select className={inputClass} value={content.settings.homepageFeaturedBookId} onChange={(event) => updateSettings("homepageFeaturedBookId", event.target.value)}><option value="">Choose a published book</option>{content.books.filter((book) => book.published).map((book) => <option key={book.id} value={book.id}>{book.title}</option>)}</select></label>
+                <Field label="Small text above the heading" maxLength={32} value={content.settings.homepageFeaturedBookEyebrow} onChange={(value) => updateSettings("homepageFeaturedBookEyebrow", value)} />
+                <div className="sm:col-span-2"><Field label="Main heading" maxLength={90} value={content.settings.homepageFeaturedBookHeading} onChange={(value) => updateSettings("homepageFeaturedBookHeading", value)} /></div>
+                <div className="sm:col-span-2"><TextareaField label="Short description" rows={5} maxLength={260} value={content.settings.homepageFeaturedBookCopy} onChange={(value) => updateSettings("homepageFeaturedBookCopy", value)} /></div>
+                <Field label="Buy button text" maxLength={30} value={content.settings.homepageFeaturedBookPrimaryCtaLabel} onChange={(value) => updateSettings("homepageFeaturedBookPrimaryCtaLabel", value)} />
+                <Field label="Learn more button text" maxLength={30} value={content.settings.homepageFeaturedBookSecondaryCtaLabel} onChange={(value) => updateSettings("homepageFeaturedBookSecondaryCtaLabel", value)} />
+                <div className="sm:col-span-2"><Field label="Image description for screen readers" maxLength={100} value={content.settings.homepageFeaturedBookImageAlt} onChange={(value) => updateSettings("homepageFeaturedBookImageAlt", value)} /></div>
+                <div className="sm:col-span-2"><AdminImageUploader label="Featured book image" images={content.settings.homepageFeaturedBookImage ? [content.settings.homepageFeaturedBookImage] : []} onChange={(images) => updateSettings("homepageFeaturedBookImage", images[0] ?? "")} /></div>
+              </div>
+            </SettingsEditorCard>
+            <SettingsEditorCard id="homepage-connect" number={6} title="Connect and contact" description="Edit the three link cards and the introduction above the contact form.">
+              <div className="grid gap-5 sm:grid-cols-2">
+                <Field label="Small text above the heading" maxLength={40} value={content.settings.homepageConnectKicker} onChange={(value) => updateSettings("homepageConnectKicker", value)} />
+                <Field label="Main heading" maxLength={90} value={content.settings.homepageConnectHeading} onChange={(value) => updateSettings("homepageConnectHeading", value)} />
+                <div className="sm:col-span-2"><TextareaField label="Short introduction" rows={4} maxLength={200} value={content.settings.homepageConnectIntro} onChange={(value) => updateSettings("homepageConnectIntro", value)} /></div>
+                <p className="sm:col-span-2 text-xs font-bold uppercase tracking-[0.12em] text-burgundy">Link cards</p>
+                <Field label="Media card title" maxLength={30} value={content.settings.homepageConnectMediaTitle} onChange={(value) => updateSettings("homepageConnectMediaTitle", value)} />
+                <Field label="Events card title" maxLength={30} value={content.settings.homepageConnectEventsTitle} onChange={(value) => updateSettings("homepageConnectEventsTitle", value)} />
+                <div><TextareaField label="Media card description" rows={3} maxLength={120} value={content.settings.homepageConnectMediaCopy} onChange={(value) => updateSettings("homepageConnectMediaCopy", value)} /></div>
+                <div><TextareaField label="Events card description" rows={3} maxLength={120} value={content.settings.homepageConnectEventsCopy} onChange={(value) => updateSettings("homepageConnectEventsCopy", value)} /></div>
+                <Field label="Contact card title" maxLength={30} value={content.settings.homepageConnectContactTitle} onChange={(value) => updateSettings("homepageConnectContactTitle", value)} />
+                <div><TextareaField label="Contact card description" rows={3} maxLength={120} value={content.settings.homepageConnectContactCopy} onChange={(value) => updateSettings("homepageConnectContactCopy", value)} /></div>
+                <div className="sm:col-span-2 my-1 border-t border-charcoal/10" />
+                <p className="sm:col-span-2 text-xs font-bold uppercase tracking-[0.12em] text-burgundy">Contact form</p>
+                <Field label="Small text above the form heading" maxLength={40} value={content.settings.homepageContactKicker} onChange={(value) => updateSettings("homepageContactKicker", value)} />
+                <Field label="Contact page button text" maxLength={30} value={content.settings.homepageContactCtaLabel} onChange={(value) => updateSettings("homepageContactCtaLabel", value)} />
+                <div className="sm:col-span-2"><Field label="Form heading" maxLength={100} value={content.settings.homepageContactHeading} onChange={(value) => updateSettings("homepageContactHeading", value)} /></div>
+                <div className="sm:col-span-2"><TextareaField label="Text above the form" rows={4} maxLength={220} value={content.settings.homepageContactCopy} onChange={(value) => updateSettings("homepageContactCopy", value)} /></div>
+              </div>
+            </SettingsEditorCard>
+            <SettingsEditorCard id="homepage-newsletter" number={7} title="Newsletter section" description="Edit the newsletter invitation and choose whether signups stay in this admin or go to another mailing platform.">
+              <div className="grid gap-5 sm:grid-cols-2">
+                <Field label="Small text above the heading" maxLength={40} value={content.settings.homepageNewsletterKicker} onChange={(value) => updateSettings("homepageNewsletterKicker", value)} />
+                <Field label="Main heading" maxLength={100} value={content.settings.newsletterTitle} onChange={(value) => updateSettings("newsletterTitle", value)} />
+                <div className="sm:col-span-2"><TextareaField label="Short description" rows={4} maxLength={220} value={content.settings.newsletterCopy} onChange={(value) => updateSettings("newsletterCopy", value)} /></div>
+                <div className="sm:col-span-2 my-1 border-t border-charcoal/10" />
+                <div className="sm:col-span-2 rounded-xl bg-[#fffaf1] p-4 text-sm leading-6 text-charcoal/60"><strong className="text-charcoal">Where should new subscribers go?</strong><br />Leave the website link empty to save subscribers in the Newsletter area of this admin. Add a Mailchimp, Substack, ConvertKit, or similar link to send them there instead.</div>
+                <Field label="External newsletter signup link (optional)" type="url" placeholder="https://…" value={content.settings.newsletterExternalUrl} onChange={(value) => updateSettings("newsletterExternalUrl", value)} />
+                <Field label="External signup button text" value={content.settings.newsletterExternalLabel} onChange={(value) => updateSettings("newsletterExternalLabel", value)} />
+              </div>
+            </SettingsEditorCard>
+            <SettingsEditorCard id="website-basics" title="Website details and social media" description="Update the website name, public contact email, and social profiles shown in the navigation and footer.">
+              <div className="grid gap-5 sm:grid-cols-2">
+                <Field label="Website name" value={content.settings.siteName} onChange={(value) => updateSettings("siteName", value)} />
+                <Field label="Public contact email" type="email" value={content.settings.contactEmail} onChange={(value) => updateSettings("contactEmail", value)} />
+                <div className="sm:col-span-2 flex items-center justify-between gap-4 border-t border-charcoal/10 pt-5"><div><p className="font-semibold text-charcoal">Social media profiles</p><p className="mt-1 text-sm text-charcoal/55">These are the only links allowed to open outside the website.</p></div><button type="button" onClick={() => updateSettings("socialLinks", [...content.settings.socialLinks, { id: newId("social"), platform: "Instagram", url: "" } satisfies CmsSocialLink])} className="inline-flex shrink-0 items-center gap-2 rounded-full bg-charcoal px-4 py-2 text-xs font-semibold text-cream"><Plus className="size-4" />Add profile</button></div>
+                <div className="sm:col-span-2 space-y-4">
+                  {content.settings.socialLinks.map((social, index) => (
+                    <div key={social.id} className="grid gap-4 rounded-xl border border-charcoal/10 bg-[#fffdf9] p-4 sm:grid-cols-[3rem_11rem_1fr_auto] sm:items-end">
+                      <div className="grid size-11 place-items-center rounded-xl bg-burgundy text-cream" title={`${social.platform} icon`}><SocialIcon platform={social.platform} className="size-5" /></div>
+                      <label className={labelClass}>Social network<select className={inputClass} value={social.platform} onChange={(event) => updateSettings("socialLinks", content.settings.socialLinks.map((item, itemIndex) => itemIndex === index ? { ...item, platform: event.target.value as CmsSocialLink["platform"] } : item))}>{["Instagram", "Facebook", "YouTube", "TikTok", "LinkedIn", "X", "Other"].map((platform) => <option key={platform}>{platform}</option>)}</select></label>
+                      <Field label="Profile link" type="url" placeholder="https://…" value={social.url} onChange={(value) => updateSettings("socialLinks", content.settings.socialLinks.map((item, itemIndex) => itemIndex === index ? { ...item, url: value } : item))} />
+                      <button type="button" onClick={() => updateSettings("socialLinks", content.settings.socialLinks.filter((_, itemIndex) => itemIndex !== index))} className="mb-0.5 grid size-11 place-items-center rounded-xl border border-red-200 text-red-700 hover:bg-red-50" aria-label={`Remove ${social.platform}`}><Trash2 className="size-4" /></button>
+                    </div>
+                  ))}
+                  {content.settings.socialLinks.length === 0 && <p className="rounded-xl border border-dashed border-charcoal/15 px-5 py-8 text-center text-sm text-charcoal/45">No social profiles are shown.</p>}
+                </div>
+              </div>
+            </SettingsEditorCard>
           </div>
 
-          <div className="mt-7 rounded-2xl border border-charcoal/10 bg-[#fffdf9] p-6 shadow-sm sm:p-8">
+          <div id="about-page" className="mt-7 scroll-mt-28 rounded-2xl border border-charcoal/10 bg-[#fffdf9] p-6 shadow-sm sm:p-8">
             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
               <div>
-                <p className="section-kicker">Dedicated page</p>
+                <p className="section-kicker">Separate website page</p>
                 <h3 className="mt-3 font-display text-3xl">About page</h3>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-charcoal/60">Every word, image, and button on the /about page. Paragraphs are separated by a blank line.</p>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-charcoal/60">Edit the full About page here. This is different from the shorter About section on the homepage.</p>
               </div>
               <label className="inline-flex shrink-0 cursor-pointer items-center gap-3 text-sm font-semibold text-charcoal"><input className="size-4 accent-burgundy" type="checkbox" checked={content.settings.aboutPageEnabled} onChange={(event) => updateSettings("aboutPageEnabled", event.target.checked)} />Published</label>
             </div>
 
             <div className="mt-6 grid gap-5 border-t border-charcoal/10 pt-6 sm:grid-cols-2">
-              <div className="sm:col-span-2"><Field label="Page eyebrow" value={content.settings.aboutPageEyebrow} onChange={(value) => updateSettings("aboutPageEyebrow", value)} /></div>
-              <div className="sm:col-span-2"><Field label="Page headline" value={content.settings.aboutPageTitle} onChange={(value) => updateSettings("aboutPageTitle", value)} /></div>
-              <div className="sm:col-span-2"><TextareaField label="Hero introduction" rows={4} value={content.settings.aboutPageIntro} onChange={(value) => updateSettings("aboutPageIntro", value)} /></div>
-              <div className="sm:col-span-2"><Field label="Section kicker" value={content.settings.aboutPageKicker} onChange={(value) => updateSettings("aboutPageKicker", value)} /></div>
-              <div className="sm:col-span-2"><TextareaField label="Section headline" rows={3} value={content.settings.aboutPageHeading} onChange={(value) => updateSettings("aboutPageHeading", value)} /></div>
-              <div className="sm:col-span-2"><TextareaField label="Body paragraphs" rows={12} value={content.settings.aboutPageBody} onChange={(value) => updateSettings("aboutPageBody", value)} placeholder="First paragraph.&#10;&#10;Second paragraph." /></div>
-              <div className="sm:col-span-2"><Field label="Portrait image alt text" value={content.settings.aboutPageImageAlt} onChange={(value) => updateSettings("aboutPageImageAlt", value)} /></div>
+              <div className="sm:col-span-2"><Field label="Small text above the page heading" value={content.settings.aboutPageEyebrow} onChange={(value) => updateSettings("aboutPageEyebrow", value)} /></div>
+              <div className="sm:col-span-2"><Field label="Main page heading" value={content.settings.aboutPageTitle} onChange={(value) => updateSettings("aboutPageTitle", value)} /></div>
+              <div className="sm:col-span-2"><TextareaField label="Introduction below the page heading" rows={4} value={content.settings.aboutPageIntro} onChange={(value) => updateSettings("aboutPageIntro", value)} /></div>
+              <div className="sm:col-span-2"><Field label="Small text above the story section" value={content.settings.aboutPageKicker} onChange={(value) => updateSettings("aboutPageKicker", value)} /></div>
+              <div className="sm:col-span-2"><TextareaField label="Story section heading" rows={3} value={content.settings.aboutPageHeading} onChange={(value) => updateSettings("aboutPageHeading", value)} /></div>
+              <div className="sm:col-span-2"><TextareaField label="Story paragraphs" rows={12} value={content.settings.aboutPageBody} onChange={(value) => updateSettings("aboutPageBody", value)} placeholder="Type one paragraph, leave a blank line, then type the next paragraph." /></div>
+              <div className="sm:col-span-2"><Field label="Portrait description for screen readers" value={content.settings.aboutPageImageAlt} onChange={(value) => updateSettings("aboutPageImageAlt", value)} /></div>
               <div className="sm:col-span-2"><AdminImageUploader label="About page portrait" images={content.settings.aboutPageImage ? [content.settings.aboutPageImage] : []} onChange={(images) => updateSettings("aboutPageImage", images[0] ?? "")} /></div>
-              <Field label="Primary button label" value={content.settings.aboutPagePrimaryCtaLabel} onChange={(value) => updateSettings("aboutPagePrimaryCtaLabel", value)} />
-              <Field label="Primary button link" value={content.settings.aboutPagePrimaryCtaHref} onChange={(value) => updateSettings("aboutPagePrimaryCtaHref", value)} placeholder="/books" />
-              <Field label="Secondary button label" value={content.settings.aboutPageSecondaryCtaLabel} onChange={(value) => updateSettings("aboutPageSecondaryCtaLabel", value)} />
-              <Field label="Secondary button link" value={content.settings.aboutPageSecondaryCtaHref} onChange={(value) => updateSettings("aboutPageSecondaryCtaHref", value)} placeholder="/contact" />
+              <Field label="First button text" value={content.settings.aboutPagePrimaryCtaLabel} onChange={(value) => updateSettings("aboutPagePrimaryCtaLabel", value)} />
+              <Field label="First button page" value={content.settings.aboutPagePrimaryCtaHref} onChange={(value) => updateSettings("aboutPagePrimaryCtaHref", value)} placeholder="/books" />
+              <Field label="Second button text" value={content.settings.aboutPageSecondaryCtaLabel} onChange={(value) => updateSettings("aboutPageSecondaryCtaLabel", value)} />
+              <Field label="Second button page" value={content.settings.aboutPageSecondaryCtaHref} onChange={(value) => updateSettings("aboutPageSecondaryCtaHref", value)} placeholder="/contact" />
             </div>
           </div>
         </section>}

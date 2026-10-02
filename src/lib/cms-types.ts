@@ -29,6 +29,41 @@ export type CmsSettings = {
   heroNewsletterTitle: string;
   heroNewsletterCopy: string;
   heroNewsletterCtaLabel: string;
+  heroAboutCtaLabel: string;
+  homepageAboutKicker: string;
+  homepageAboutCtaLabel: string;
+  homepageAboutSecondaryImage: string;
+  homepageAboutQuote: string;
+  homepageBooksKicker: string;
+  homepageBooksHeading: string;
+  homepageBooksIntro: string;
+  homepageBooksDetailCtaLabel: string;
+  homepageCreativeKicker: string;
+  homepageCreativeHeading: string;
+  homepageCreativeIntro: string;
+  homepageCreativeRoles: CmsHomepageCreativeRole[];
+  homepageFeaturedBookId: string;
+  homepageFeaturedBookImage: string;
+  homepageFeaturedBookImageAlt: string;
+  homepageFeaturedBookEyebrow: string;
+  homepageFeaturedBookHeading: string;
+  homepageFeaturedBookCopy: string;
+  homepageFeaturedBookPrimaryCtaLabel: string;
+  homepageFeaturedBookSecondaryCtaLabel: string;
+  homepageConnectKicker: string;
+  homepageConnectHeading: string;
+  homepageConnectIntro: string;
+  homepageConnectMediaTitle: string;
+  homepageConnectMediaCopy: string;
+  homepageConnectEventsTitle: string;
+  homepageConnectEventsCopy: string;
+  homepageConnectContactTitle: string;
+  homepageConnectContactCopy: string;
+  homepageContactKicker: string;
+  homepageContactHeading: string;
+  homepageContactCopy: string;
+  homepageContactCtaLabel: string;
+  homepageNewsletterKicker: string;
   aboutPageEyebrow: string;
   aboutPageTitle: string;
   aboutPageIntro: string;
@@ -42,6 +77,12 @@ export type CmsSettings = {
   aboutPageSecondaryCtaLabel: string;
   aboutPageSecondaryCtaHref: string;
   aboutPageEnabled: boolean;
+};
+
+export type CmsHomepageCreativeRole = {
+  id: "writer" | "author" | "speaker" | "publisher";
+  title: string;
+  copy: string;
 };
 
 export type CmsHomepageSectionId =
@@ -131,10 +172,22 @@ export type CmsEvent = {
   published: boolean;
 };
 
+export const CMS_MEDIA_CATEGORIES = [
+  "Interviews",
+  "Features",
+  "Appearances",
+  "Videos",
+  "Podcast / vlogcast",
+  "Press release",
+  "Press kit",
+] as const;
+
+export type CmsMediaCategory = (typeof CMS_MEDIA_CATEGORIES)[number];
+
 export type CmsMediaItem = {
   id: string;
   title: string;
-  type: string;
+  type: CmsMediaCategory;
   outlet: string;
   date: string;
   summary: string;

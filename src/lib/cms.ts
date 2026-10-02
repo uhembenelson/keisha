@@ -3,7 +3,7 @@ import "server-only";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import type { CmsContent, CmsHomepageSection, CmsHomepageSectionId, CmsSocialLink } from "@/lib/cms-types";
+import { CMS_MEDIA_CATEGORIES, type CmsContent, type CmsHomepageCreativeRole, type CmsHomepageSection, type CmsHomepageSectionId, type CmsMediaCategory, type CmsSocialLink } from "@/lib/cms-types";
 import { getMongoDatabase } from "@/lib/mongodb";
 
 const dataDirectory = path.join(process.cwd(), "data");
@@ -32,6 +32,20 @@ const defaultSocialLinks: CmsSocialLink[] = [
   },
 ];
 
+const defaultHomepageCreativeRoles: CmsHomepageCreativeRole[] = [
+  { id: "writer", title: "Writer", copy: "Contemporary fiction with lighthearted humor and a message that lingers." },
+  { id: "author", title: "Author", copy: "Stories about love, purpose, self-discovery, and the courage to begin again." },
+  { id: "speaker", title: "Speaker", copy: "Honest conversations that encourage people to find and follow their purpose." },
+  { id: "publisher", title: "Publisher", copy: "Creating space for fresh voices and stories beyond the expected." },
+];
+
+function normalizeHomepageCreativeRoles(roles?: CmsHomepageCreativeRole[]) {
+  return defaultHomepageCreativeRoles.map((fallback) => {
+    const role = Array.isArray(roles) ? roles.find((item) => item?.id === fallback.id) : undefined;
+    return { id: fallback.id, title: role?.title || fallback.title, copy: role?.copy || fallback.copy };
+  });
+}
+
 function normalizeHomepageSections(sections?: CmsHomepageSection[]) {
   const validIds = new Set(defaultHomepageSections.map((section) => section.id));
   const seen = new Set<CmsHomepageSectionId>();
@@ -46,6 +60,20 @@ function normalizeHomepageSections(sections?: CmsHomepageSection[]) {
     if (!seen.has(section.id)) normalized.push({ ...section });
   }
   return normalized;
+}
+
+function normalizeMediaCategory(value?: string): CmsMediaCategory {
+  const legacyNames: Record<string, CmsMediaCategory> = {
+    Interview: "Interviews",
+    Feature: "Features",
+    Appearance: "Appearances",
+    Video: "Videos",
+    Podcast: "Podcast / vlogcast",
+    "Press Release": "Press release",
+    "Press Kit": "Press kit",
+  };
+  if (value && CMS_MEDIA_CATEGORIES.includes(value as CmsMediaCategory)) return value as CmsMediaCategory;
+  return legacyNames[value || ""] || "Interviews";
 }
 
 export async function getCmsContent(): Promise<CmsContent> {
@@ -89,6 +117,55 @@ function normalizeCmsContent(content: CmsContent): CmsContent {
         settings.heroNewsletterCopy ||
         "Join my mailing list for exclusive stories, new releases, behind-the-scenes updates, and special surprises.",
       heroNewsletterCtaLabel: settings.heroNewsletterCtaLabel || "Join the mailing list",
+      heroAboutCtaLabel: settings.heroAboutCtaLabel || "Learn more",
+      homepageAboutKicker: settings.homepageAboutKicker || "01 / Meet the author",
+      homepageAboutCtaLabel: settings.homepageAboutCtaLabel || "Read Keisha’s story",
+      homepageAboutSecondaryImage: settings.homepageAboutSecondaryImage || "/images/keisha-profile-d.png",
+      homepageAboutQuote: settings.homepageAboutQuote || "A testament to the power of following your purpose.",
+      homepageBooksKicker: settings.homepageBooksKicker || "02 / Published work",
+      homepageBooksHeading: settings.homepageBooksHeading || "Stories worth lingering over.",
+      homepageBooksIntro:
+        settings.homepageBooksIntro ||
+        "Contemporary fiction filled with layered women, complicated love, and the brave work of choosing a life that fits.",
+      homepageBooksDetailCtaLabel: settings.homepageBooksDetailCtaLabel || "Discover the book",
+      homepageCreativeKicker: settings.homepageCreativeKicker || "03 / The creative world",
+      homepageCreativeHeading: settings.homepageCreativeHeading || "More than one way to tell a story.",
+      homepageCreativeIntro:
+        settings.homepageCreativeIntro ||
+        "Keisha’s work lives at the intersection of imagination, encouragement, and creative entrepreneurship.",
+      homepageCreativeRoles: normalizeHomepageCreativeRoles(settings.homepageCreativeRoles),
+      homepageFeaturedBookId: settings.homepageFeaturedBookId || "the-love-enthusiast",
+      homepageFeaturedBookImage: settings.homepageFeaturedBookImage || "/images/the-love-enthusiast-mockup.png",
+      homepageFeaturedBookImageAlt: settings.homepageFeaturedBookImageAlt || "Featured book display",
+      homepageFeaturedBookEyebrow: settings.homepageFeaturedBookEyebrow || "Now available",
+      homepageFeaturedBookHeading: settings.homepageFeaturedBookHeading || "Love has a melody all its own.",
+      homepageFeaturedBookCopy:
+        settings.homepageFeaturedBookCopy ||
+        "The Love Enthusiast is a poignant story of resilience and the indomitable spirit of a woman determined to love, despite the odds stacked against her.",
+      homepageFeaturedBookPrimaryCtaLabel: settings.homepageFeaturedBookPrimaryCtaLabel || "Explore the book",
+      homepageFeaturedBookSecondaryCtaLabel: settings.homepageFeaturedBookSecondaryCtaLabel || "View all books",
+      homepageConnectKicker: settings.homepageConnectKicker || "04 / Connect",
+      homepageConnectHeading: settings.homepageConnectHeading || "Let’s keep the conversation going.",
+      homepageConnectIntro:
+        settings.homepageConnectIntro ||
+        "Whether you are a reader, interviewer, book club host, or fellow creative, Keisha would love to hear what resonated with you.",
+      homepageConnectMediaTitle: settings.homepageConnectMediaTitle || "Media & Press",
+      homepageConnectMediaCopy:
+        settings.homepageConnectMediaCopy || "Interviews, features, speaking, and creative conversations.",
+      homepageConnectEventsTitle: settings.homepageConnectEventsTitle || "Events",
+      homepageConnectEventsCopy:
+        settings.homepageConnectEventsCopy || "Author appearances, readings, and moments to gather.",
+      homepageConnectContactTitle: settings.homepageConnectContactTitle || "Send a note",
+      homepageConnectContactCopy:
+        settings.homepageConnectContactCopy || "For thoughtful messages, media inquiries, and collaborations.",
+      homepageContactKicker: settings.homepageContactKicker || "Contact Keisha",
+      homepageContactHeading:
+        settings.homepageContactHeading || "Have a media inquiry, event invitation, or thoughtful note?",
+      homepageContactCopy:
+        settings.homepageContactCopy ||
+        "Use the form and share a few details. For a larger message area and contact information, visit the dedicated contact page.",
+      homepageContactCtaLabel: settings.homepageContactCtaLabel || "Open contact page",
+      homepageNewsletterKicker: settings.homepageNewsletterKicker || "The WriteNow Letter",
       homepageStatOneValue: settings.homepageStatOneValue || "25+",
       homepageStatOneTitle: settings.homepageStatOneTitle || "Years of finding the story",
       homepageStatOneDescription:
@@ -138,6 +215,7 @@ function normalizeCmsContent(content: CmsContent): CmsContent {
     events: content.events.map((item) => ({ ...item, image: item.image || "", gallery: item.gallery || [] })),
     media: content.media.map((item) => ({
       ...item,
+      type: normalizeMediaCategory(item.type),
       mediaUrl: item.mediaUrl || "",
       mediaCtaLabel: item.mediaCtaLabel || "Watch or listen",
       image: item.image || "",
