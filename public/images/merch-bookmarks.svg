@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1200">
+  <rect width="1200" height="1200" fill="#fff3df"/>
+  <g transform="rotate(-10 360 600)">
+    <path d="M230 180h260v820l-130-105-130 105z" fill="#7b2337"/>
+    <circle cx="360" cy="285" r="42" fill="#d2a54a"/>
+    <text x="360" y="475" text-anchor="middle" fill="#fffaf1" font-family="Georgia,serif" font-size="48">ONE MORE</text>
+    <text x="360" y="540" text-anchor="middle" fill="#fffaf1" font-family="Georgia,serif" font-size="60" font-style="italic">chapter</text>
+  </g>
+  <g transform="rotate(9 760 600)">
+    <path d="M630 180h260v820L760 895 630 1000z" fill="#2b1b1f"/>
+    <circle cx="760" cy="285" r="42" fill="#d2a54a"/>
+    <text x="760" y="465" text-anchor="middle" fill="#fff3df" font-family="Georgia,serif" font-size="44">STORIES</text>
+    <text x="760" y="530" text-anchor="middle" fill="#d2a54a" font-family="Georgia,serif" font-size="56" font-style="italic">beyond</text>
+    <text x="760" y="590" text-anchor="middle" fill="#fff3df" font-family="Georgia,serif" font-size="43">EXPECTED</text>
+  </g>
+</svg>

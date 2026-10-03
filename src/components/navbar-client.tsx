@@ -7,12 +7,14 @@ import { usePathname } from "next/navigation";
 import { ArrowUpRight, Menu, X } from "lucide-react";
 
 import { SocialIcon } from "@/components/social-icon";
+import { CartLink } from "@/components/cart-link";
 import type { CmsSocialLink } from "@/lib/cms-types";
 
 const navItems = [
   { label: "Home", href: "/" },
   { label: "About", href: "/about" },
   { label: "Books", href: "/books" },
+  { label: "Merch", href: "/merch" },
   { label: "News", href: "/news" },
   { label: "Events", href: "/events" },
 ];
@@ -71,6 +73,7 @@ export function NavbarClient({ socialLinks }: { socialLinks: CmsSocialLink[] }) 
             <Link href="/contact" className="ml-2 bg-charcoal px-4 py-2 text-xs font-semibold text-cream transition-colors hover:bg-burgundy">Contact</Link>
           </nav>
           {socialLinks.length > 0 && <div className="flex items-center gap-2 border-l border-burgundy/15 pl-3">{socialButtons}</div>}
+          <CartLink />
         </div>
         <button ref={menuButtonRef} type="button" onClick={() => setMobileOpen(true)} aria-expanded={mobileOpen} aria-controls="mobile-navigation" className="grid size-11 place-items-center bg-burgundy text-cream lg:hidden"><Menu className="size-5" /><span className="sr-only">Open navigation</span></button>
       </div>
@@ -88,6 +91,7 @@ export function NavbarClient({ socialLinks }: { socialLinks: CmsSocialLink[] }) 
           </nav>
 
           <Link href="/contact" onClick={closeMobileMenu} className="mt-6 flex items-center justify-between bg-burgundy px-5 py-5 text-cream"><span><span className="block text-xs font-semibold uppercase tracking-[0.18em] text-gold">Start a conversation</span><span className="mt-1 block font-display text-2xl">Contact Keisha</span></span><ArrowUpRight className="size-5" /></Link>
+          <div onClick={closeMobileMenu}><CartLink mobile /></div>
 
           {socialLinks.length > 0 && <div className="mt-auto border-t border-charcoal/15 pt-6"><p className="text-xs font-semibold uppercase tracking-[0.2em] text-charcoal/45">Follow along</p><div className="mt-4 flex flex-wrap gap-3">{socialLinks.map((social) => <a key={social.id} href={social.url} target="_blank" rel="noreferrer" aria-label={`Follow Keisha on ${social.platform}`} className="flex items-center gap-2 rounded-full border border-burgundy/20 px-4 py-2.5 text-sm font-semibold text-burgundy"><SocialIcon platform={social.platform} className="size-4" />{social.platform}</a>)}</div></div>}
         </div>

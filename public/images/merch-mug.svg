@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1200">
+  <rect width="1200" height="1200" fill="#efe1db"/>
+  <ellipse cx="570" cy="970" rx="350" ry="58" fill="#2b1b1f" opacity=".13"/>
+  <path d="M250 300h600v560c0 120-95 185-300 185S250 980 250 860z" fill="#fffaf1" stroke="#7b2337" stroke-width="20"/>
+  <path d="M850 420h70c150 0 160 300 5 315h-75" fill="none" stroke="#7b2337" stroke-width="55"/>
+  <path d="M850 470h58c72 0 72 205 0 205h-58" fill="none" stroke="#fffaf1" stroke-width="27"/>
+  <text x="550" y="555" text-anchor="middle" fill="#7b2337" font-family="Georgia,serif" font-size="88">WriteNow</text>
+  <text x="550" y="645" text-anchor="middle" fill="#2b1b1f" font-family="Georgia,serif" font-size="46" font-style="italic">one story at a time</text>
+  <path d="M400 710h300" stroke="#d2a54a" stroke-width="9"/>
+</svg>

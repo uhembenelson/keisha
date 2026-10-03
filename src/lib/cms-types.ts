@@ -77,6 +77,24 @@ export type CmsSettings = {
   aboutPageSecondaryCtaLabel: string;
   aboutPageSecondaryCtaHref: string;
   aboutPageEnabled: boolean;
+  mediaPageEyebrow: string;
+  mediaPageTitle: string;
+  mediaPageIntro: string;
+  mediaPageHeroImage: string;
+  mediaPageHeroImageAlt: string;
+  mediaPageImage: string;
+  mediaPageImageAlt: string;
+  mediaPageResourcesKicker: string;
+  mediaPageResourcesTitle: string;
+  mediaPageResourcesCopy: string;
+  mediaPageInquiryLabel: string;
+  mediaPageDetailLabel: string;
+  mediaPageOpenLinkFallback: string;
+  mediaPageBackLabel: string;
+  merchEyebrow: string;
+  merchTitle: string;
+  merchDescription: string;
+  merchComingSoonLabel: string;
 };
 
 export type CmsHomepageCreativeRole = {
@@ -91,6 +109,7 @@ export type CmsHomepageSectionId =
   | "books"
   | "creative"
   | "featured-book"
+  | "merch"
   | "connect"
   | "newsletter";
 
@@ -198,12 +217,37 @@ export type CmsMediaItem = {
   published: boolean;
 };
 
+export const CMS_MERCH_CATEGORIES = [
+  "Books",
+  "Apparel",
+  "Mugs",
+  "Totes",
+  "Bookmarks & reading accessories",
+  "Limited-edition & signed items",
+  "Other",
+] as const;
+
+export type CmsMerchCategory = (typeof CMS_MERCH_CATEGORIES)[number];
+
+export type CmsMerchProduct = {
+  id: string;
+  name: string;
+  category: CmsMerchCategory;
+  shortDescription: string;
+  price: string;
+  buyUrl: string;
+  buttonText: string;
+  image: string;
+  published: boolean;
+};
+
 export type CmsContent = {
   settings: CmsSettings;
   books: CmsBook[];
   news: CmsNewsItem[];
   events: CmsEvent[];
   media: CmsMediaItem[];
+  merch: CmsMerchProduct[];
 };
 
 export type ContactInquiryStatus = "new" | "in-progress" | "resolved" | "archived";

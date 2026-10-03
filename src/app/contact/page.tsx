@@ -16,8 +16,11 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-export default async function ContactPage() {
+export default async function ContactPage({ searchParams }: PageProps<"/contact">) {
   const cms = await getCmsContent();
+  const query = await searchParams;
+  const defaultSubject = typeof query.subject === "string" ? query.subject.slice(0, 160) : "";
+  const defaultMessage = typeof query.message === "string" ? query.message.slice(0, 1000) : "";
   return (
     <main className="bg-[#fffaf1] text-charcoal">
       <Navbar />
@@ -35,7 +38,7 @@ export default async function ContactPage() {
               <div className="flex gap-4 border-t border-charcoal/15 pt-5"><Users className="mt-1 size-5 text-burgundy" /><div><p className="font-semibold">Events & book clubs</p><p className="mt-1 text-sm text-charcoal/65">Invitations, readings, and group conversations.</p></div></div>
             </div>
           </div>
-          <ContactForm />
+          <ContactForm defaultSubject={defaultSubject} defaultMessage={defaultMessage} />
         </div>
       </section>
       <SiteFooter />

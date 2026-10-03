@@ -3,7 +3,7 @@ import "server-only";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { CMS_MEDIA_CATEGORIES, type CmsContent, type CmsHomepageCreativeRole, type CmsHomepageSection, type CmsHomepageSectionId, type CmsMediaCategory, type CmsSocialLink } from "@/lib/cms-types";
+import { CMS_MEDIA_CATEGORIES, CMS_MERCH_CATEGORIES, type CmsContent, type CmsHomepageCreativeRole, type CmsHomepageSection, type CmsHomepageSectionId, type CmsMediaCategory, type CmsMerchCategory, type CmsSocialLink } from "@/lib/cms-types";
 import { getMongoDatabase } from "@/lib/mongodb";
 
 const dataDirectory = path.join(process.cwd(), "data");
@@ -15,6 +15,7 @@ const defaultHomepageSections: CmsHomepageSection[] = [
   { id: "books", enabled: true },
   { id: "creative", enabled: true },
   { id: "featured-book", enabled: true },
+  { id: "merch", enabled: true },
   { id: "connect", enabled: true },
   { id: "newsletter", enabled: true },
 ];
@@ -53,7 +54,9 @@ function normalizeHomepageSections(sections?: CmsHomepageSection[]) {
   for (const section of Array.isArray(sections) ? sections : []) {
     if (!section || !validIds.has(section.id) || seen.has(section.id)) continue;
     seen.add(section.id);
-    normalized.push({ id: section.id, enabled: section.enabled !== false });
+    // Treat legacy string values defensively so a persisted "false" cannot
+    // accidentally render a section as visible on the public site.
+    normalized.push({ id: section.id, enabled: section.enabled !== false && (section.enabled as unknown) !== "false" });
   }
 
   for (const section of defaultHomepageSections) {
@@ -74,6 +77,11 @@ function normalizeMediaCategory(value?: string): CmsMediaCategory {
   };
   if (value && CMS_MEDIA_CATEGORIES.includes(value as CmsMediaCategory)) return value as CmsMediaCategory;
   return legacyNames[value || ""] || "Interviews";
+}
+
+function normalizeMerchCategory(value?: string): CmsMerchCategory {
+  if (value && CMS_MERCH_CATEGORIES.includes(value as CmsMerchCategory)) return value as CmsMerchCategory;
+  return "Other";
 }
 
 export async function getCmsContent(): Promise<CmsContent> {
@@ -202,6 +210,30 @@ function normalizeCmsContent(content: CmsContent): CmsContent {
       aboutPageSecondaryCtaLabel: settings.aboutPageSecondaryCtaLabel || "Contact Keisha",
       aboutPageSecondaryCtaHref: settings.aboutPageSecondaryCtaHref || "/contact",
       aboutPageEnabled: settings.aboutPageEnabled ?? true,
+      mediaPageEyebrow: settings.mediaPageEyebrow || "Media + Press",
+      mediaPageTitle: settings.mediaPageTitle || "Conversations about books, creativity, and purpose.",
+      mediaPageIntro:
+        settings.mediaPageIntro ||
+        "Resources and inquiry information for interviews, features, speaking engagements, and press opportunities.",
+      mediaPageHeroImage: settings.mediaPageHeroImage || "/images/pic.jpeg",
+      mediaPageHeroImageAlt: settings.mediaPageHeroImageAlt || "Keisha WriteNow Allen in her creative space",
+      mediaPageImage: settings.mediaPageImage || "/images/keisha-profile-c.png",
+      mediaPageImageAlt: settings.mediaPageImageAlt || "Keisha WriteNow Allen portrait",
+      mediaPageResourcesKicker: settings.mediaPageResourcesKicker || "Press resources",
+      mediaPageResourcesTitle: settings.mediaPageResourcesTitle || "A contemporary fiction author with a purpose-led story.",
+      mediaPageResourcesCopy:
+        settings.mediaPageResourcesCopy ||
+        "Keisha speaks about discovering your purpose, contemporary fiction, creative entrepreneurship, publishing, and the life-changing work of returning to your voice.",
+      mediaPageInquiryLabel: settings.mediaPageInquiryLabel || "Send a media inquiry",
+      mediaPageDetailLabel: settings.mediaPageDetailLabel || "View details",
+      mediaPageOpenLinkFallback: settings.mediaPageOpenLinkFallback || "Open link",
+      mediaPageBackLabel: settings.mediaPageBackLabel || "Media + press",
+      merchEyebrow: settings.merchEyebrow || "MERCH",
+      merchTitle: settings.merchTitle || "Wear the Story. Carry the Brand.",
+      merchDescription:
+        settings.merchDescription ||
+        "Kreative Kreations merchandise is coming soon from book-inspired pieces to branded items for readers, supporters, and fellow storytellers.",
+      merchComingSoonLabel: settings.merchComingSoonLabel || "Coming Soon →",
     },
     books: content.books.map((book) => ({
       ...book,
@@ -221,6 +253,16 @@ function normalizeCmsContent(content: CmsContent): CmsContent {
       image: item.image || "",
       gallery: item.gallery || [],
     })),
+    merch: (Array.isArray(content.merch) ? content.merch : []).map((product) => ({
+      ...product,
+      category: normalizeMerchCategory(product.category),
+      shortDescription: product.shortDescription || "",
+      price: product.price || "",
+      buyUrl: product.buyUrl || "",
+      buttonText: product.buttonText || "Shop Now",
+      image: product.image || "",
+      published: product.published === true,
+    })),
   };
 }
 
@@ -232,7 +274,8 @@ export function isCmsContent(value: unknown): value is CmsContent {
       Array.isArray(content.books) &&
       Array.isArray(content.news) &&
       Array.isArray(content.events) &&
-      Array.isArray(content.media),
+      Array.isArray(content.media) &&
+      Array.isArray(content.merch),
   );
 }
 

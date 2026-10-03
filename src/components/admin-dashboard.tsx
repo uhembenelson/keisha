@@ -10,6 +10,7 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  CreditCard,
   ExternalLink,
   Eye,
   EyeOff,
@@ -21,10 +22,12 @@ import {
   MessageSquare,
   Menu,
   Newspaper,
+  PackageCheck,
   Pencil,
   Plus,
   Save,
   Settings,
+  ShoppingBag,
   Trash2,
   UserRoundCheck,
   X,
@@ -38,27 +41,32 @@ import type {
   CmsHomepageSectionId,
   CmsMediaCategory,
   CmsMediaItem,
+  CmsMerchCategory,
+  CmsMerchProduct,
   CmsNewsItem,
   CmsSettings,
   CmsSocialLink,
   CmsSubmissions,
 } from "@/lib/cms-types";
-import { CMS_MEDIA_CATEGORIES, HERO_NEWSLETTER_LIMITS, HOMEPAGE_STAT_LIMITS, homepageStatsFitLayout } from "@/lib/cms-types";
+import { CMS_MEDIA_CATEGORIES, CMS_MERCH_CATEGORIES, HERO_NEWSLETTER_LIMITS, HOMEPAGE_STAT_LIMITS, homepageStatsFitLayout } from "@/lib/cms-types";
 import { AdminImageUploader } from "@/components/admin-image-uploader";
 import { AdminBookFileUploader } from "@/components/admin-book-file-uploader";
 import { SocialIcon } from "@/components/social-icon";
 
-type Tab = "overview" | "books" | "news" | "events" | "media" | "inquiries" | "subscribers" | "settings";
-type CollectionKey = "books" | "news" | "events" | "media";
+type Tab = "overview" | "books" | "merch" | "news" | "events" | "media" | "orders" | "inquiries" | "subscribers" | "payments" | "settings";
+type CollectionKey = "books" | "merch" | "news" | "events" | "media";
 
 const navItems: { id: Tab; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "books", label: "Books", icon: BookOpenText },
+  { id: "merch", label: "Merch", icon: ShoppingBag },
   { id: "news", label: "News", icon: Newspaper },
   { id: "events", label: "Events", icon: CalendarDays },
   { id: "media", label: "Media + Press", icon: FileText },
+  { id: "orders", label: "Merch orders", icon: PackageCheck },
   { id: "inquiries", label: "Contact inquiries", icon: MessageSquare },
   { id: "subscribers", label: "Newsletter", icon: UserRoundCheck },
+  { id: "payments", label: "Payment settings", icon: CreditCard },
   { id: "settings", label: "Site settings", icon: Settings },
 ];
 
@@ -68,6 +76,7 @@ const homepageSectionLabels: Record<CmsHomepageSectionId, string> = {
   books: "Books",
   creative: "Creative roles",
   "featured-book": "Featured book",
+  merch: "Merch",
   connect: "Connect & contact",
   newsletter: "Newsletter",
 };
@@ -81,6 +90,8 @@ const mediaCategoryActionLabels: Record<CmsMediaCategory, string> = {
   "Press release": "Read press release",
   "Press kit": "Open press kit",
 };
+
+type MerchOrder = { id: string; status: string; customerEmail?: string; customerName?: string; amountTotal: number; currency: string; createdAt: string; items: { name: string; quantity: number }[] };
 
 const inputClass =
   "mt-2 w-full rounded-xl border border-charcoal/15 bg-white px-4 py-3 text-sm text-charcoal outline-none transition focus:border-burgundy focus:ring-2 focus:ring-burgundy/10";
@@ -234,27 +245,61 @@ export function AdminDashboard() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
-  const [editing, setEditing] = useState<Record<CollectionKey, number | null>>({ books: null, news: null, events: null, media: null });
+  const [editing, setEditing] = useState<Record<CollectionKey, number | null>>({ books: null, merch: null, news: null, events: null, media: null });
   const [selectedInquiryId, setSelectedInquiryId] = useState<string | null>(null);
   const [selectedSubscriberId, setSelectedSubscriberId] = useState<string | null>(null);
   const [draggedHomepageSection, setDraggedHomepageSection] = useState<CmsHomepageSectionId | null>(null);
   const [notice, setNotice] = useState<{ kind: "success" | "error"; message: string } | null>(null);
+  const [paymentSettings, setPaymentSettings] = useState({ publishableKey: "", secretKey: "", webhookSecret: "", secretKeyConfigured: false, webhookSecretConfigured: false, ready: false });
+  const [paymentSaving, setPaymentSaving] = useState(false);
+  const [orders, setOrders] = useState<MerchOrder[]>([]);
 
   useEffect(() => {
     Promise.all([
       fetch("/api/admin/content", { cache: "no-store" }),
       fetch("/api/admin/submissions", { cache: "no-store" }),
+      fetch("/api/admin/payment-settings", { cache: "no-store" }),
+      fetch("/api/admin/orders", { cache: "no-store" }),
     ])
-      .then(async ([contentResponse, submissionsResponse]) => {
-        if (!contentResponse.ok || !submissionsResponse.ok) throw new Error("Could not load the CMS data.");
-        return Promise.all([contentResponse.json() as Promise<CmsContent>, submissionsResponse.json() as Promise<CmsSubmissions>]);
+      .then(async ([contentResponse, submissionsResponse, paymentResponse, ordersResponse]) => {
+        if (!contentResponse.ok || !submissionsResponse.ok || !paymentResponse.ok || !ordersResponse.ok) throw new Error("Could not load the CMS data.");
+        return Promise.all([contentResponse.json() as Promise<CmsContent>, submissionsResponse.json() as Promise<CmsSubmissions>, paymentResponse.json() as Promise<{ publishableKey: string; secretKeyConfigured: boolean; webhookSecretConfigured: boolean; ready: boolean }>, ordersResponse.json() as Promise<{ orders: MerchOrder[] }>]);
       })
-      .then(([contentData, submissionsData]) => {
+      .then(([contentData, submissionsData, paymentData, orderData]) => {
         setContent(contentData);
         setSubmissions(submissionsData);
+        setPaymentSettings((current) => ({ ...current, ...paymentData }));
+        setOrders(orderData.orders);
       })
       .catch((error: Error) => setNotice({ kind: "error", message: error.message }));
   }, []);
+
+  async function savePaymentConfiguration() {
+    setPaymentSaving(true);
+    setNotice(null);
+    try {
+      const response = await fetch("/api/admin/payment-settings", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ publishableKey: paymentSettings.publishableKey, secretKey: paymentSettings.secretKey, webhookSecret: paymentSettings.webhookSecret }) });
+      const result = await response.json() as { error?: string; publishableKey?: string; secretKeyConfigured?: boolean; webhookSecretConfigured?: boolean; ready?: boolean };
+      if (!response.ok) throw new Error(result.error || "Payment settings could not be saved.");
+      setPaymentSettings((current) => ({ ...current, publishableKey: result.publishableKey || "", secretKey: "", webhookSecret: "", secretKeyConfigured: Boolean(result.secretKeyConfigured), webhookSecretConfigured: Boolean(result.webhookSecretConfigured), ready: Boolean(result.ready) }));
+      setNotice({ kind: "success", message: result.ready ? "Stripe checkout is configured and ready." : "Payment settings saved. Add the remaining Stripe keys to activate checkout." });
+    } catch (error) {
+      setNotice({ kind: "error", message: error instanceof Error ? error.message : "Payment settings could not be saved." });
+    } finally {
+      setPaymentSaving(false);
+    }
+  }
+
+  async function updateOrderStatus(id: string, status: string) {
+    const previous = orders;
+    setOrders((current) => current.map((order) => order.id === id ? { ...order, status } : order));
+    const response = await fetch("/api/admin/orders", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id, status }) });
+    if (!response.ok) {
+      setOrders(previous);
+      const result = await response.json().catch(() => ({})) as { error?: string };
+      setNotice({ kind: "error", message: result.error || "Order status could not be updated." });
+    }
+  }
 
   useEffect(() => {
     function warnBeforeLeaving(event: BeforeUnloadEvent) {
@@ -269,13 +314,15 @@ export function AdminDashboard() {
     if (!content || !submissions) return [];
     return [
       { label: "Books", value: content.books.length, tab: "books" as Tab, icon: BookOpenText },
+      { label: "Merch products", value: content.merch.length, tab: "merch" as Tab, icon: ShoppingBag },
       { label: "News posts", value: content.news.length, tab: "news" as Tab, icon: Newspaper },
       { label: "Events", value: content.events.length, tab: "events" as Tab, icon: CalendarDays },
       { label: "Media items", value: content.media.length, tab: "media" as Tab, icon: FileText },
+      { label: "Merch orders", value: orders.length, tab: "orders" as Tab, icon: PackageCheck },
       { label: "New inquiries", value: submissions.inquiries.filter((item) => item.status === "new").length, tab: "inquiries" as Tab, icon: MessageSquare },
       { label: "Subscribers", value: submissions.subscribers.filter((item) => item.status === "active").length, tab: "subscribers" as Tab, icon: UserRoundCheck },
     ];
-  }, [content, submissions]);
+  }, [content, submissions, orders.length]);
 
   function updateSettings<K extends keyof CmsSettings>(key: K, value: CmsSettings[K]) {
     setDirty(true);
@@ -332,6 +379,7 @@ export function AdminDashboard() {
       if (!current) return current;
       const entry = {
         books: { id: newId("book"), slug: "new-book", title: "New book", category: "", price: "", availability: "coming-soon", purchaseUrl: "", retailers: [], downloadUrl: "", cover: "", gallery: [], shortDescription: "", description: "", published: false } satisfies CmsBook,
+        merch: { id: newId("merch"), name: "New product", category: "Other", shortDescription: "", price: "", buyUrl: "", buttonText: "Shop Now", image: "", published: false } satisfies CmsMerchProduct,
         news: { id: newId("news"), slug: "new-update", title: "New update", date: new Date().toISOString().slice(0, 10), excerpt: "", body: "", image: "", gallery: [], published: false } satisfies CmsNewsItem,
         events: { id: newId("event"), title: "New event", date: "", location: "", description: "", image: "", gallery: [], published: false } satisfies CmsEvent,
         media: { id: newId("media"), title: `New ${mediaCategory.toLowerCase()} item`, type: mediaCategory, outlet: "", date: "", summary: "", mediaUrl: "", mediaCtaLabel: mediaCategoryActionLabels[mediaCategory], image: "", gallery: [], published: false } satisfies CmsMediaItem,
@@ -360,9 +408,10 @@ export function AdminDashboard() {
       content.settings.newsletterExternalUrl,
       ...content.settings.socialLinks.map((link) => link.url),
       ...content.media.map((item) => item.mediaUrl),
+      ...content.merch.map((product) => product.buyUrl),
     ].find((url) => url.trim() && !/^https?:\/\//i.test(url));
     if (invalidExternalUrl) {
-      setNotice({ kind: "error", message: "External newsletter, social, and media links must begin with http:// or https://." });
+      setNotice({ kind: "error", message: "External newsletter, social, media, and merch links must begin with http:// or https://." });
       return false;
     }
     const featuredBook = content.books.find((book) => book.id === content.settings.heroFeatureBookId);
@@ -475,7 +524,7 @@ export function AdminDashboard() {
       <div className="lg:pl-64">
         <header className="sticky top-0 z-30 flex min-h-20 items-center justify-between border-b border-charcoal/10 bg-[#f7f1e8]/95 px-5 backdrop-blur sm:px-8">
           <div className="flex items-center gap-3"><button type="button" onClick={() => setMobileOpen(true)} className="rounded-full border border-charcoal/15 p-2 lg:hidden"><Menu className="size-5" /></button><div><div className="flex items-center gap-2"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-burgundy">Keisha WriteNow Allen</p>{dirty && <span className="rounded-full bg-gold/25 px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-[0.1em] text-burgundy">Unsaved</span>}</div><h1 className="font-display text-2xl capitalize sm:text-3xl">{navItems.find((item) => item.id === tab)?.label}</h1></div></div>
-          {tab !== "inquiries" && tab !== "subscribers" && <button type="button" onClick={save} disabled={saving} className="inline-flex items-center gap-2 rounded-full bg-burgundy px-5 py-2.5 text-sm font-semibold text-cream transition hover:bg-charcoal disabled:opacity-60">{saving ? <LoaderCircle className="size-4 animate-spin" /> : <Save className="size-4" />}<span className="hidden sm:inline">Save changes</span></button>}
+          {tab !== "inquiries" && tab !== "subscribers" && tab !== "orders" && tab !== "payments" && <button type="button" onClick={save} disabled={saving} className="inline-flex items-center gap-2 rounded-full bg-burgundy px-5 py-2.5 text-sm font-semibold text-cream transition hover:bg-charcoal disabled:opacity-60">{saving ? <LoaderCircle className="size-4 animate-spin" /> : <Save className="size-4" />}<span className="hidden sm:inline">Save changes</span></button>}
         </header>
 
         <div className="mx-auto max-w-6xl p-5 sm:p-8 lg:p-10">
@@ -496,6 +545,30 @@ export function AdminDashboard() {
               {content.books[editing.books].availability === "free" && <><div className="sm:col-span-2"><AdminBookFileUploader value={content.books[editing.books].downloadUrl ?? ""} onChange={(downloadUrl) => updateItem("books", editing.books as number, { downloadUrl })} /></div><div className="sm:col-span-2"><Field label="Or use an existing download URL" type="url" placeholder="https://… or /downloads/…" value={content.books[editing.books].downloadUrl ?? ""} onChange={(value) => updateItem("books", editing.books as number, { downloadUrl: value })} /></div></>}
               <div className="sm:col-span-2"><AdminImageUploader label="Book cover" images={content.books[editing.books].cover ? [content.books[editing.books].cover] : []} onChange={(images) => updateItem("books", editing.books as number, { cover: images[0] ?? "" })} /></div><div className="sm:col-span-2"><AdminImageUploader label="Book gallery" multiple images={content.books[editing.books].gallery ?? []} onChange={(gallery) => updateItem("books", editing.books as number, { gallery })} /></div>
               <div className="sm:col-span-2"><TextareaField label="Card description" value={content.books[editing.books].shortDescription} onChange={(value) => updateItem("books", editing.books as number, { shortDescription: value })} /></div><div className="sm:col-span-2"><TextareaField label="Full description" rows={7} value={content.books[editing.books].description} onChange={(value) => updateItem("books", editing.books as number, { description: value })} /></div><div className="sm:col-span-2"><PublishedToggle checked={content.books[editing.books].published} onChange={(published) => updateItem("books", editing.books as number, { published })} /></div>
+            </EditorCard></div>}
+          </section>}
+
+          {tab === "merch" && <section>
+            <CollectionHeader title="Merch" copy="Manage the coming-soon message now, then add, update, publish, or remove products whenever the shop is ready." onAdd={() => addItem("merch")} />
+            <div className="mt-7 rounded-2xl border border-gold/35 bg-[#fff8e9] p-5 sm:p-6">
+              <div><p className="font-display text-2xl">Merch page introduction</p><p className="mt-1 text-sm leading-6 text-charcoal/55">This message is shown above products. When no products are published, it becomes the complete Coming Soon page.</p></div>
+              <div className="mt-6 grid gap-5 border-t border-charcoal/10 pt-6 sm:grid-cols-2">
+                <Field label="Small heading" maxLength={30} value={content.settings.merchEyebrow} onChange={(value) => updateSettings("merchEyebrow", value)} />
+                <Field label="Coming-soon label" maxLength={30} value={content.settings.merchComingSoonLabel} onChange={(value) => updateSettings("merchComingSoonLabel", value)} />
+                <div className="sm:col-span-2"><Field label="Main heading" maxLength={90} value={content.settings.merchTitle} onChange={(value) => updateSettings("merchTitle", value)} /></div>
+                <div className="sm:col-span-2"><TextareaField label="Introduction" rows={5} maxLength={300} value={content.settings.merchDescription} onChange={(value) => updateSettings("merchDescription", value)} /></div>
+              </div>
+            </div>
+            <AdminTable headers={["Product", "Category", "Price", "Shop link", "Status", "Actions"]} empty="No products yet. The public Merch page is showing the Coming Soon message." rows={content.merch.map((product, index) => ({ id: product.id, cells: [<TableIdentity key="merch" image={product.image} title={product.name} detail={product.shortDescription || "No description"} />, product.category, product.price || "—", <span key="link" className={`text-xs font-semibold ${product.buyUrl ? "text-emerald-700" : "text-charcoal/40"}`}>{product.buyUrl ? "Link added" : "No link"}</span>, <StatusBadge key="status" published={product.published} />, <TableActions key="actions" onEdit={() => setEditing((current) => ({ ...current, merch: index }))} onDelete={() => removeItem("merch", index)} />] }))} />
+            {editing.merch !== null && content.merch[editing.merch] && <div className="mt-7"><EditorCard title={content.merch[editing.merch].name} subtitle={content.merch[editing.merch].published ? "Published product" : "Draft product"} onDelete={() => removeItem("merch", editing.merch as number)} onClose={() => setEditing((current) => ({ ...current, merch: null }))} onSave={() => void saveAndClose("merch")} saving={saving}>
+              <Field label="Product name" value={content.merch[editing.merch].name} onChange={(value) => updateItem("merch", editing.merch as number, { name: value })} />
+              <label className={labelClass}>Product type<select className={inputClass} value={content.merch[editing.merch].category} onChange={(event) => updateItem("merch", editing.merch as number, { category: event.target.value as CmsMerchCategory })}>{CMS_MERCH_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
+              <Field label="Price" placeholder="$24.99" value={content.merch[editing.merch].price} onChange={(value) => updateItem("merch", editing.merch as number, { price: value })} />
+              <Field label="Button text" placeholder="Shop Now" maxLength={30} value={content.merch[editing.merch].buttonText} onChange={(value) => updateItem("merch", editing.merch as number, { buttonText: value })} />
+              <div className="sm:col-span-2"><TextareaField label="Short description" rows={4} maxLength={220} value={content.merch[editing.merch].shortDescription} onChange={(value) => updateItem("merch", editing.merch as number, { shortDescription: value })} /></div>
+              <div className="sm:col-span-2 rounded-xl border-2 border-gold/35 bg-[#fff8e9] p-5"><Field label="Shop or buy link" type="url" placeholder="https://…" value={content.merch[editing.merch].buyUrl} onChange={(value) => updateItem("merch", editing.merch as number, { buyUrl: value })} /><p className="mt-2 text-xs normal-case leading-5 tracking-normal text-charcoal/50">Paste the full product checkout or shop link. It must begin with http:// or https://.</p></div>
+              <div className="sm:col-span-2"><AdminImageUploader label="Product image" images={content.merch[editing.merch].image ? [content.merch[editing.merch].image] : []} onChange={(images) => updateItem("merch", editing.merch as number, { image: images[0] ?? "" })} /></div>
+              <div className="sm:col-span-2"><PublishedToggle checked={content.merch[editing.merch].published} onChange={(published) => updateItem("merch", editing.merch as number, { published })} /></div>
             </EditorCard></div>}
           </section>}
 
@@ -533,12 +606,32 @@ export function AdminDashboard() {
             </EditorCard></div>}
           </section>}
 
+          {tab === "orders" && <section>
+            <InboxHeader title="Merch orders" copy="Orders created by Stripe Checkout appear here. Payment status is updated by the Stripe webhook." count={orders.length} />
+            <AdminTable headers={["Order", "Customer", "Total", "Received", "Status"]} empty="No merchandise orders have been created yet." rows={orders.map((order) => ({ id: order.id, cells: [<div key="order"><p className="font-semibold">{order.items.map((item) => `${item.quantity}× ${item.name}`).join(", ") || "Merch order"}</p><p className="mt-1 text-xs text-charcoal/40">{order.id.slice(0, 8).toUpperCase()}</p></div>, <div key="customer"><p className="font-semibold">{order.customerName || "Awaiting payment"}</p><p className="mt-1 text-xs text-charcoal/45">{order.customerEmail || "—"}</p></div>, new Intl.NumberFormat("en-US", { style: "currency", currency: (order.currency || "usd").toUpperCase() }).format((order.amountTotal || 0) / 100), new Date(order.createdAt).toLocaleString(), <label key="status" className={labelClass}><span className="sr-only">Order status</span><select className={`${inputClass} mt-0 min-w-36`} value={order.status} onChange={(event) => void updateOrderStatus(order.id, event.target.value)}>{["pending", "paid", "processing", "fulfilled", "cancelled", "refunded", "payment-failed"].map((status) => <option key={status} value={status}>{status.replace("-", " ")}</option>)}</select></label>] }))} />
+          </section>}
+
           {tab === "inquiries" && <section><InboxHeader title="Contact inquiries" copy="Messages submitted through the public contact forms appear here." count={submissions.inquiries.length} /><AdminTable headers={["Sender", "Subject", "Received", "Status", "Actions"]} empty="No contact inquiries have arrived yet." rows={submissions.inquiries.map((item) => ({ id: item.id, cells: [<div key="sender"><p className="font-semibold">{item.name}</p><p className="text-xs text-charcoal/45">{item.email}</p></div>, item.subject, new Date(item.createdAt).toLocaleDateString(), <InboxStatus key="status" status={item.status} />, <TableActions key="actions" editLabel="Open" onEdit={() => setSelectedInquiryId(item.id)} onDelete={() => void removeSubmission("inquiries", item.id)} />] }))} />
             {selectedInquiry && <article className="mt-7 rounded-2xl border border-charcoal/10 bg-[#fffdf9] p-6 shadow-sm sm:p-8"><div className="flex items-start justify-between gap-5 border-b border-charcoal/10 pb-5"><div><div className="flex flex-wrap items-center gap-3"><h3 className="font-display text-3xl">{selectedInquiry.subject}</h3><InboxStatus status={selectedInquiry.status} /></div><p className="mt-2 text-sm font-semibold text-burgundy">{selectedInquiry.name} · {selectedInquiry.email}</p><p className="mt-1 text-xs text-charcoal/45">{new Date(selectedInquiry.createdAt).toLocaleString()} · {selectedInquiry.source}</p></div><button type="button" onClick={() => setSelectedInquiryId(null)} className="rounded-full p-2 text-charcoal/45"><X className="size-4" /></button></div><p className="mt-6 whitespace-pre-wrap text-sm leading-7 text-charcoal/75">{selectedInquiry.message}</p><div className="mt-7 grid gap-5 border-t border-charcoal/10 pt-6 sm:grid-cols-[13rem_1fr_auto] sm:items-end"><label className={labelClass}>Status<select className={inputClass} value={selectedInquiry.status} onChange={(event) => { const status = event.target.value as typeof selectedInquiry.status; updateInquiry(selectedInquiry.id, { status }); void persistSubmission("inquiries", selectedInquiry.id, { status }); }}><option value="new">New</option><option value="in-progress">In progress</option><option value="resolved">Resolved</option><option value="archived">Archived</option></select></label><label className={labelClass}>Private note<input className={inputClass} value={selectedInquiry.note} onChange={(event) => updateInquiry(selectedInquiry.id, { note: event.target.value })} placeholder="Add follow-up notes…" /></label><button type="button" onClick={() => persistSubmission("inquiries", selectedInquiry.id, { note: selectedInquiry.note })} className="h-11 rounded-xl bg-charcoal px-5 text-sm font-semibold text-cream">Save note</button></div></article>}
           </section>}
 
           {tab === "subscribers" && <section><InboxHeader title="Newsletter subscribers" copy="Manage every email collected through the WriteNow Letter forms." count={submissions.subscribers.length} /><AdminTable headers={["Email", "Joined", "Source", "Status", "Actions"]} empty="No newsletter subscribers have joined yet." rows={submissions.subscribers.map((item) => ({ id: item.id, cells: [<p key="email" className="font-semibold">{item.email}</p>, new Date(item.createdAt).toLocaleDateString(), item.source, <InboxStatus key="status" status={item.status} />, <TableActions key="actions" onEdit={() => setSelectedSubscriberId(item.id)} onDelete={() => void removeSubmission("subscribers", item.id)} />] }))} />
             {selectedSubscriber && <article className="mt-7 rounded-2xl border border-charcoal/10 bg-[#fffdf9] p-6 shadow-sm sm:p-8"><div className="flex items-start justify-between gap-5 border-b border-charcoal/10 pb-5"><div><h3 className="break-all font-display text-3xl">{selectedSubscriber.email}</h3><p className="mt-2 text-xs text-charcoal/45">Joined {new Date(selectedSubscriber.createdAt).toLocaleString()} · {selectedSubscriber.source}</p></div><button type="button" onClick={() => setSelectedSubscriberId(null)} className="rounded-full p-2 text-charcoal/45"><X className="size-4" /></button></div><div className="mt-6 grid gap-5 sm:grid-cols-[13rem_1fr_auto] sm:items-end"><label className={labelClass}>Status<select className={inputClass} value={selectedSubscriber.status} onChange={(event) => { const status = event.target.value as typeof selectedSubscriber.status; updateSubscriber(selectedSubscriber.id, { status }); void persistSubmission("subscribers", selectedSubscriber.id, { status }); }}><option value="active">Active</option><option value="unsubscribed">Unsubscribed</option></select></label><label className={labelClass}>Private note<input className={inputClass} value={selectedSubscriber.note} onChange={(event) => updateSubscriber(selectedSubscriber.id, { note: event.target.value })} placeholder="Add a note…" /></label><button type="button" onClick={() => persistSubmission("subscribers", selectedSubscriber.id, { note: selectedSubscriber.note })} className="h-11 rounded-xl bg-charcoal px-5 text-sm font-semibold text-cream">Save note</button></div></article>}
+          </section>}
+
+          {tab === "payments" && <section>
+            <div><p className="section-kicker">Secure checkout</p><h2 className="mt-3 font-display text-4xl">Payment settings</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-charcoal/60">Connect Stripe once. The Merch cart will then send customers to Stripe’s secure checkout for card payment and shipping details.</p></div>
+            <div className={`mt-7 flex items-center gap-3 rounded-2xl border p-5 ${paymentSettings.ready ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-gold/40 bg-[#fff8e9] text-charcoal"}`}><span className={`grid size-10 place-items-center rounded-full ${paymentSettings.ready ? "bg-emerald-700 text-white" : "bg-gold text-charcoal"}`}>{paymentSettings.ready ? <Check className="size-5" /> : <CreditCard className="size-5" />}</span><div><p className="font-semibold">{paymentSettings.ready ? "Stripe checkout is active" : "Stripe checkout is not active yet"}</p><p className="mt-1 text-xs opacity-70">{paymentSettings.ready ? "Customers can complete real payments." : "Enter all three Stripe values below to activate payments."}</p></div></div>
+            <div className="mt-5 rounded-2xl border border-charcoal/10 bg-[#fffdf9] p-6 shadow-sm sm:p-8">
+              <div className="grid gap-5 sm:grid-cols-2">
+                <div className="sm:col-span-2"><Field label="Stripe publishable key" type="password" placeholder="pk_test_… or pk_live_…" value={paymentSettings.publishableKey} onChange={(publishableKey) => setPaymentSettings((current) => ({ ...current, publishableKey }))} /></div>
+                <Field label={paymentSettings.secretKeyConfigured ? "Stripe secret key (saved — enter only to replace)" : "Stripe secret key"} type="password" placeholder={paymentSettings.secretKeyConfigured ? "Saved securely" : "sk_test_… or sk_live_…"} value={paymentSettings.secretKey} onChange={(secretKey) => setPaymentSettings((current) => ({ ...current, secretKey }))} />
+                <Field label={paymentSettings.webhookSecretConfigured ? "Webhook secret (saved — enter only to replace)" : "Webhook signing secret"} type="password" placeholder={paymentSettings.webhookSecretConfigured ? "Saved securely" : "whsec_…"} value={paymentSettings.webhookSecret} onChange={(webhookSecret) => setPaymentSettings((current) => ({ ...current, webhookSecret }))} />
+                <div className="sm:col-span-2 rounded-xl border border-charcoal/10 bg-white p-5"><p className="text-xs font-bold uppercase tracking-[0.12em] text-charcoal/55">Stripe webhook endpoint</p><code className="mt-3 block overflow-x-auto bg-charcoal px-4 py-3 text-sm text-cream">/api/stripe/webhook</code><p className="mt-3 text-sm leading-6 text-charcoal/60">In Stripe, create a webhook using your website domain followed by this path. Listen for <strong>checkout.session.completed</strong> and copy its signing secret here.</p></div>
+              </div>
+              <div className="mt-7 flex justify-end border-t border-charcoal/10 pt-5"><button type="button" onClick={() => void savePaymentConfiguration()} disabled={paymentSaving} className="inline-flex items-center gap-2 rounded-full bg-burgundy px-6 py-3 text-sm font-semibold text-cream disabled:opacity-60">{paymentSaving ? <LoaderCircle className="size-4 animate-spin" /> : <Save className="size-4" />}Save payment settings</button></div>
+            </div>
+            <div className="mt-5 rounded-2xl border border-charcoal/10 bg-white p-5 text-sm leading-6 text-charcoal/60"><strong className="text-charcoal">Security:</strong> secret and webhook keys are encrypted before database storage and are never returned to this browser after saving. Stripe—not this website—collects card details.</div>
           </section>}
 
           {tab === "settings" && <section><div><p className="section-kicker">Website editor</p><h2 className="mt-3 font-display text-4xl">Website content</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-charcoal/60">Choose the part of the website you want to change, update the words or images, then click <strong>Save changes</strong>.</p></div>
@@ -558,8 +651,10 @@ export function AdminDashboard() {
               ["#homepage-books", "Books"],
               ["#homepage-creative", "Creative roles"],
               ["#homepage-featured-book", "Featured book"],
+              ["#homepage-merch", "Merch"],
               ["#homepage-connect", "Connect & contact"],
               ["#homepage-newsletter", "Newsletter"],
+              ["#media-press-page", "Media + press page"],
               ["#website-basics", "Website & social links"],
               ["#about-page", "About page"],
             ].map(([href, label]) => <a key={href} href={href} className="rounded-full border border-charcoal/15 bg-white px-4 py-2 text-xs font-semibold text-charcoal transition hover:border-burgundy hover:text-burgundy">{label}</a>)}
@@ -646,7 +741,16 @@ export function AdminDashboard() {
                 <div className="sm:col-span-2"><AdminImageUploader label="Featured book image" images={content.settings.homepageFeaturedBookImage ? [content.settings.homepageFeaturedBookImage] : []} onChange={(images) => updateSettings("homepageFeaturedBookImage", images[0] ?? "")} /></div>
               </div>
             </SettingsEditorCard>
-            <SettingsEditorCard id="homepage-connect" number={6} title="Connect and contact" description="Edit the three link cards and the introduction above the contact form.">
+            <SettingsEditorCard id="homepage-merch" number={6} title="Merch section" description="Edit the homepage merch message. Product cards come from the Merch area in the left menu.">
+              <div className="grid gap-5 sm:grid-cols-2">
+                <Field label="Small text above the heading" maxLength={30} value={content.settings.merchEyebrow} onChange={(value) => updateSettings("merchEyebrow", value)} />
+                <Field label="Coming-soon link text" maxLength={30} value={content.settings.merchComingSoonLabel} onChange={(value) => updateSettings("merchComingSoonLabel", value)} />
+                <div className="sm:col-span-2"><Field label="Main heading" maxLength={90} value={content.settings.merchTitle} onChange={(value) => updateSettings("merchTitle", value)} /></div>
+                <div className="sm:col-span-2"><TextareaField label="Short introduction" rows={5} maxLength={300} value={content.settings.merchDescription} onChange={(value) => updateSettings("merchDescription", value)} /></div>
+                <div className="sm:col-span-2 rounded-xl bg-[#fffaf1] p-4 text-sm leading-6 text-charcoal/60">To add or edit products, open <strong className="text-charcoal">Merch</strong> from the left menu. The homepage automatically previews up to three published products.</div>
+              </div>
+            </SettingsEditorCard>
+            <SettingsEditorCard id="homepage-connect" number={7} title="Connect and contact" description="Edit the three link cards and the introduction above the contact form.">
               <div className="grid gap-5 sm:grid-cols-2">
                 <Field label="Small text above the heading" maxLength={40} value={content.settings.homepageConnectKicker} onChange={(value) => updateSettings("homepageConnectKicker", value)} />
                 <Field label="Main heading" maxLength={90} value={content.settings.homepageConnectHeading} onChange={(value) => updateSettings("homepageConnectHeading", value)} />
@@ -666,7 +770,7 @@ export function AdminDashboard() {
                 <div className="sm:col-span-2"><TextareaField label="Text above the form" rows={4} maxLength={220} value={content.settings.homepageContactCopy} onChange={(value) => updateSettings("homepageContactCopy", value)} /></div>
               </div>
             </SettingsEditorCard>
-            <SettingsEditorCard id="homepage-newsletter" number={7} title="Newsletter section" description="Edit the newsletter invitation and choose whether signups stay in this admin or go to another mailing platform.">
+            <SettingsEditorCard id="homepage-newsletter" number={8} title="Newsletter section" description="Edit the newsletter invitation and choose whether signups stay in this admin or go to another mailing platform.">
               <div className="grid gap-5 sm:grid-cols-2">
                 <Field label="Small text above the heading" maxLength={40} value={content.settings.homepageNewsletterKicker} onChange={(value) => updateSettings("homepageNewsletterKicker", value)} />
                 <Field label="Main heading" maxLength={100} value={content.settings.newsletterTitle} onChange={(value) => updateSettings("newsletterTitle", value)} />
@@ -675,6 +779,25 @@ export function AdminDashboard() {
                 <div className="sm:col-span-2 rounded-xl bg-[#fffaf1] p-4 text-sm leading-6 text-charcoal/60"><strong className="text-charcoal">Where should new subscribers go?</strong><br />Leave the website link empty to save subscribers in the Newsletter area of this admin. Add a Mailchimp, Substack, ConvertKit, or similar link to send them there instead.</div>
                 <Field label="External newsletter signup link (optional)" type="url" placeholder="https://…" value={content.settings.newsletterExternalUrl} onChange={(value) => updateSettings("newsletterExternalUrl", value)} />
                 <Field label="External signup button text" value={content.settings.newsletterExternalLabel} onChange={(value) => updateSettings("newsletterExternalLabel", value)} />
+              </div>
+            </SettingsEditorCard>
+            <SettingsEditorCard id="media-press-page" title="Media + press page" description="Edit the page introduction, press resources text, portrait, and button labels. Individual interviews, features, videos, podcasts, and press items are managed from Media + Press in the left menu.">
+              <div className="grid gap-5 sm:grid-cols-2">
+                <Field label="Page eyebrow" maxLength={40} value={content.settings.mediaPageEyebrow} onChange={(value) => updateSettings("mediaPageEyebrow", value)} />
+                <Field label="Inquiry button text" maxLength={40} value={content.settings.mediaPageInquiryLabel} onChange={(value) => updateSettings("mediaPageInquiryLabel", value)} />
+                <div className="sm:col-span-2"><Field label="Page heading" maxLength={120} value={content.settings.mediaPageTitle} onChange={(value) => updateSettings("mediaPageTitle", value)} /></div>
+                <div className="sm:col-span-2"><TextareaField label="Introduction below the heading" rows={4} maxLength={260} value={content.settings.mediaPageIntro} onChange={(value) => updateSettings("mediaPageIntro", value)} /></div>
+                <div className="sm:col-span-2"><AdminImageUploader label="Page hero image" images={content.settings.mediaPageHeroImage ? [content.settings.mediaPageHeroImage] : []} onChange={(images) => updateSettings("mediaPageHeroImage", images[0] ?? "")} /></div>
+                <div className="sm:col-span-2"><Field label="Hero image description for screen readers" maxLength={120} value={content.settings.mediaPageHeroImageAlt} onChange={(value) => updateSettings("mediaPageHeroImageAlt", value)} /></div>
+                <div className="sm:col-span-2"><AdminImageUploader label="Press resources portrait" images={content.settings.mediaPageImage ? [content.settings.mediaPageImage] : []} onChange={(images) => updateSettings("mediaPageImage", images[0] ?? "")} /></div>
+                <div className="sm:col-span-2"><Field label="Portrait description for screen readers" maxLength={120} value={content.settings.mediaPageImageAlt} onChange={(value) => updateSettings("mediaPageImageAlt", value)} /></div>
+                <div className="sm:col-span-2 my-1 border-t border-charcoal/10" />
+                <Field label="Resources eyebrow" maxLength={40} value={content.settings.mediaPageResourcesKicker} onChange={(value) => updateSettings("mediaPageResourcesKicker", value)} />
+                <Field label="Card details link text" maxLength={30} value={content.settings.mediaPageDetailLabel} onChange={(value) => updateSettings("mediaPageDetailLabel", value)} />
+                <div className="sm:col-span-2"><Field label="Resources heading" maxLength={100} value={content.settings.mediaPageResourcesTitle} onChange={(value) => updateSettings("mediaPageResourcesTitle", value)} /></div>
+                <div className="sm:col-span-2"><TextareaField label="Resources description" rows={5} maxLength={300} value={content.settings.mediaPageResourcesCopy} onChange={(value) => updateSettings("mediaPageResourcesCopy", value)} /></div>
+                <Field label="Fallback link button text" maxLength={30} value={content.settings.mediaPageOpenLinkFallback} onChange={(value) => updateSettings("mediaPageOpenLinkFallback", value)} />
+                <Field label="Back to page link text" maxLength={30} value={content.settings.mediaPageBackLabel} onChange={(value) => updateSettings("mediaPageBackLabel", value)} />
               </div>
             </SettingsEditorCard>
             <SettingsEditorCard id="website-basics" title="Website details and social media" description="Update the website name, public contact email, and social profiles shown in the navigation and footer.">

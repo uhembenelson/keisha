@@ -37,9 +37,10 @@ export async function PUT(request: Request) {
     body.settings.newsletterExternalUrl,
     ...(Array.isArray(body.settings.socialLinks) ? body.settings.socialLinks.map((link) => link.url) : []),
     ...body.media.map((item) => item.mediaUrl),
+    ...body.merch.map((product) => product.buyUrl),
   ];
   if (externalUrls.some((url) => typeof url === "string" && url.trim() && !/^https?:\/\//i.test(url))) {
-    return Response.json({ error: "External newsletter, social, and media links must begin with http:// or https://." }, { status: 400 });
+    return Response.json({ error: "External newsletter, social, media, and merch links must begin with http:// or https://." }, { status: 400 });
   }
 
   await saveCmsContent(body);

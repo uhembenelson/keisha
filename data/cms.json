@@ -19,6 +19,7 @@
       { "id": "books", "enabled": true },
       { "id": "creative", "enabled": true },
       { "id": "featured-book", "enabled": true },
+      { "id": "merch", "enabled": true },
       { "id": "connect", "enabled": true },
       { "id": "newsletter", "enabled": true }
     ],
@@ -88,7 +89,25 @@
     "homepageContactHeading": "Have a media inquiry, event invitation, or thoughtful note?",
     "homepageContactCopy": "Use the form and share a few details. For a larger message area and contact information, visit the dedicated contact page.",
     "homepageContactCtaLabel": "Open contact page",
-    "homepageNewsletterKicker": "The WriteNow Letter"
+    "homepageNewsletterKicker": "The WriteNow Letter",
+    "mediaPageEyebrow": "Media + Press",
+    "mediaPageTitle": "Conversations about books, creativity, and purpose.",
+    "mediaPageIntro": "Resources and inquiry information for interviews, features, speaking engagements, and press opportunities.",
+    "mediaPageHeroImage": "/images/pic.jpeg",
+    "mediaPageHeroImageAlt": "Keisha WriteNow Allen in her creative space",
+    "mediaPageImage": "/images/keisha-profile-c.png",
+    "mediaPageImageAlt": "Keisha WriteNow Allen portrait",
+    "mediaPageResourcesKicker": "Press resources",
+    "mediaPageResourcesTitle": "A contemporary fiction author with a purpose-led story.",
+    "mediaPageResourcesCopy": "Keisha speaks about discovering your purpose, contemporary fiction, creative entrepreneurship, publishing, and the life-changing work of returning to your voice.",
+    "mediaPageInquiryLabel": "Send a media inquiry",
+    "mediaPageDetailLabel": "View details",
+    "mediaPageOpenLinkFallback": "Open link",
+    "mediaPageBackLabel": "Media + press",
+    "merchEyebrow": "MERCH",
+    "merchTitle": "Wear the Story. Carry the Brand.",
+    "merchDescription": "Kreative Kreations merchandise is coming soon from book-inspired pieces to branded items for readers, supporters, and fellow storytellers.",
+    "merchComingSoonLabel": "Coming Soon →"
   },
   "books": [
     {
@@ -154,6 +173,52 @@
       "mediaCtaLabel": "Watch or listen",
       "image": "/images/keisha-profile-c.png",
       "gallery": [],
+      "published": true
+    }
+  ],
+  "merch": [
+    {
+      "id": "stories-beyond-tote",
+      "name": "Stories Beyond the Expected Tote",
+      "category": "Totes",
+      "shortDescription": "A roomy everyday tote for books, notebooks, and the stories you carry everywhere.",
+      "price": "$24.00",
+      "buyUrl": "",
+      "buttonText": "Shop Now",
+      "image": "/images/merch-tote.svg",
+      "published": true
+    },
+    {
+      "id": "writenow-story-mug",
+      "name": "WriteNow Story Mug",
+      "category": "Mugs",
+      "shortDescription": "A warm reminder to make room for your voice, your imagination, and one more chapter.",
+      "price": "$18.00",
+      "buyUrl": "",
+      "buttonText": "Shop Now",
+      "image": "/images/merch-mug.svg",
+      "published": true
+    },
+    {
+      "id": "readers-bookmark-set",
+      "name": "Reader’s Bookmark Set",
+      "category": "Bookmarks & reading accessories",
+      "shortDescription": "A coordinated pair of keepsake bookmarks created for readers who always need one more chapter.",
+      "price": "$12.00",
+      "buyUrl": "",
+      "buttonText": "Shop Now",
+      "image": "/images/merch-bookmarks.svg",
+      "published": true
+    },
+    {
+      "id": "signed-book-duo",
+      "name": "Signed Book Duo",
+      "category": "Limited-edition & signed items",
+      "shortDescription": "A signed collector’s pairing for readers who want both stories together on their shelf.",
+      "price": "$38.00",
+      "buyUrl": "",
+      "buttonText": "Shop Now",
+      "image": "/images/the-love-enthusiast-mockup.png",
       "published": true
     }
   ]

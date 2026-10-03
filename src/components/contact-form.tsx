@@ -4,7 +4,7 @@ import { FormEvent, useState } from "react";
 import { usePathname } from "next/navigation";
 import { ArrowUpRight, Check, LoaderCircle } from "lucide-react";
 
-export function ContactForm({ compact = false }: { compact?: boolean }) {
+export function ContactForm({ compact = false, defaultSubject = "", defaultMessage = "" }: { compact?: boolean; defaultSubject?: string; defaultMessage?: string }) {
   const [sent, setSent] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
@@ -66,11 +66,11 @@ export function ContactForm({ compact = false }: { compact?: boolean }) {
       </label>
       <label className={`grid gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-charcoal/70 ${compact ? "" : "sm:col-span-2"}`}>
         Subject
-        <input name="subject" required className="h-12 border border-charcoal/15 bg-cream px-4 text-base font-normal normal-case tracking-normal text-charcoal outline-none transition focus:border-burgundy" />
+        <input name="subject" required defaultValue={defaultSubject} className="h-12 border border-charcoal/15 bg-cream px-4 text-base font-normal normal-case tracking-normal text-charcoal outline-none transition focus:border-burgundy" />
       </label>
       <label className={`grid gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-charcoal/70 ${compact ? "" : "sm:col-span-2"}`}>
         Message
-        <textarea name="message" required rows={compact ? 4 : 6} className="resize-none border border-charcoal/15 bg-cream p-4 text-base font-normal normal-case tracking-normal text-charcoal outline-none transition focus:border-burgundy" />
+        <textarea name="message" required defaultValue={defaultMessage} rows={compact ? 4 : 6} className="resize-none border border-charcoal/15 bg-cream p-4 text-base font-normal normal-case tracking-normal text-charcoal outline-none transition focus:border-burgundy" />
       </label>
       {error && <p role="alert" className={`text-sm font-semibold text-red-700 ${compact ? "" : "sm:col-span-2"}`}>{error}</p>}
       <button type="submit" disabled={pending} className={`inline-flex h-12 items-center justify-center gap-2 bg-burgundy px-6 text-sm font-semibold text-cream transition-colors hover:bg-charcoal disabled:opacity-60 ${compact ? "" : "sm:col-span-2 sm:w-fit"}`}>

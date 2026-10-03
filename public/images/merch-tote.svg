@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1200">
+  <rect width="1200" height="1200" fill="#f7ead5"/>
+  <ellipse cx="600" cy="1030" rx="360" ry="55" fill="#2b1b1f" opacity=".12"/>
+  <path d="M390 390c12-175 102-260 210-260s198 85 210 260" fill="none" stroke="#7b2337" stroke-width="38"/>
+  <path d="M250 350h700l-75 675H325z" fill="#fffaf1" stroke="#7b2337" stroke-width="18"/>
+  <path d="M315 430h570" stroke="#d2a54a" stroke-width="12"/>
+  <text x="600" y="610" text-anchor="middle" fill="#7b2337" font-family="Georgia,serif" font-size="68">STORIES BEYOND</text>
+  <text x="600" y="690" text-anchor="middle" fill="#2b1b1f" font-family="Georgia,serif" font-size="74" font-style="italic">the expected.</text>
+  <path d="M470 770h260" stroke="#d2a54a" stroke-width="8"/>
+  <text x="600" y="835" text-anchor="middle" fill="#7b2337" font-family="Arial,sans-serif" font-size="30" letter-spacing="7">WRITE NOW</text>
+</svg>

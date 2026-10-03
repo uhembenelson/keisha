@@ -8,6 +8,7 @@ import {
   Mail,
   Mic2,
   PenLine,
+  ShoppingBag,
   Sparkles,
 } from "lucide-react";
 
@@ -20,6 +21,7 @@ import { HeroNewsletterCard } from "@/components/hero-newsletter-card";
 import { SiteFooter } from "@/components/site-footer";
 import { getCmsContent } from "@/lib/cms";
 import { BookAction } from "@/components/book-action";
+import { AddToCartButton } from "@/components/add-to-cart-button";
 import type { CmsHomepageSectionId } from "@/lib/cms-types";
 
 export const metadata: Metadata = {
@@ -36,6 +38,7 @@ export const dynamic = "force-dynamic";
 export default async function Home() {
   const cms = await getCmsContent();
   const books = cms.books.filter((book) => book.published);
+  const merchProducts = cms.merch.filter((product) => product.published);
   const heroFeatureBook = cms.settings.heroPromotionType === "book"
     ? books.find((book) => book.id === cms.settings.heroFeatureBookId)
     : undefined;
@@ -215,6 +218,29 @@ export default async function Home() {
         </div>
       </section>
     ),
+    merch: (
+      <section id="merch" className="bg-gold/15 px-5 py-24 sm:px-8 lg:px-12 lg:py-32">
+        <div className="mx-auto max-w-[82rem]">
+          <div className="grid gap-10 border-b border-charcoal/15 pb-10 lg:grid-cols-[1fr_0.8fr] lg:items-end">
+            <div>
+              <p className="section-kicker">{cms.settings.merchEyebrow}</p>
+              <h2 className="mt-5 max-w-3xl font-display text-5xl font-medium leading-[0.98] tracking-[-0.03em] text-charcoal sm:text-6xl lg:text-7xl">{cms.settings.merchTitle}</h2>
+            </div>
+            <div>
+              <p className="text-base leading-8 text-charcoal/70">{cms.settings.merchDescription}</p>
+              <Link href="/merch" className="mt-6 inline-flex items-center gap-2 border-b-2 border-burgundy pb-1 text-sm font-semibold text-burgundy">{merchProducts.length === 0 ? cms.settings.merchComingSoonLabel : "Explore all merch"}</Link>
+            </div>
+          </div>
+
+          {merchProducts.length > 0 ? <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {merchProducts.slice(0, 3).map((product) => <article key={product.id} className="flex flex-col overflow-hidden border border-charcoal/10 bg-cream">
+              <div className="relative aspect-square bg-dusty-rose/15">{product.image ? <Image src={product.image} alt={product.name} fill unoptimized={product.image.startsWith("/api/uploads/")} sizes="(max-width: 640px) 100vw, 33vw" className="object-cover" /> : <div className="grid h-full place-items-center text-burgundy/30"><ShoppingBag className="size-12" /></div>}</div>
+              <div className="flex flex-1 flex-col p-6"><div className="flex items-start justify-between gap-4"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-burgundy">{product.category}</p>{product.price && <p className="shrink-0 text-sm font-bold">{product.price}</p>}</div><h3 className="mt-4 font-display text-3xl leading-tight">{product.name}</h3><p className="mt-3 text-sm leading-6 text-charcoal/70">{product.shortDescription}</p><AddToCartButton productId={product.id} label={product.buttonText || "Add to cart"} className="mt-6 inline-flex w-fit items-center gap-2 bg-burgundy px-5 py-3 text-sm font-semibold text-cream" /></div>
+            </article>)}
+          </div> : <Link href="/merch" className="mt-10 flex min-h-44 items-center justify-between gap-6 bg-burgundy px-7 py-8 text-cream transition-colors hover:bg-charcoal sm:px-10"><span><span className="block text-xs font-semibold uppercase tracking-[0.2em] text-gold">The collection is being created</span><span className="mt-3 block font-display text-4xl sm:text-5xl">{cms.settings.merchComingSoonLabel}</span></span><ShoppingBag className="size-10 shrink-0 text-gold sm:size-14" /></Link>}
+        </div>
+      </section>
+    ),
     connect: (
       <section id="connect" className="bg-[#fffaf1] px-5 py-24 sm:px-8 lg:px-12 lg:py-32">
         <div className="mx-auto max-w-[82rem]">
@@ -270,7 +296,7 @@ export default async function Home() {
     <main className="overflow-x-clip bg-background text-foreground">
       <Navbar />
       {cms.settings.homepageSections
-        .filter((section) => section.enabled)
+        .filter((section) => section.enabled === true)
         .map((section) => <Fragment key={section.id}>{homepageBlocks[section.id]}</Fragment>)}
       <SiteFooter />
     </main>

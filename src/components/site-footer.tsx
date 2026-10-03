@@ -7,6 +7,7 @@ import { getCmsContent } from "@/lib/cms";
 const footerLinks = [
   { label: "About", href: "/about" },
   { label: "Books", href: "/books" },
+  { label: "Merch", href: "/merch" },
   { label: "News", href: "/news" },
   { label: "Events", href: "/events" },
   { label: "Media + Press", href: "/media-press" },
