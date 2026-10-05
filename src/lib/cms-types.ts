@@ -91,6 +91,7 @@ export type CmsSettings = {
   mediaPageDetailLabel: string;
   mediaPageOpenLinkFallback: string;
   mediaPageBackLabel: string;
+  mediaCategories: CmsMediaCategoryConfig[];
   merchEyebrow: string;
   merchTitle: string;
   merchDescription: string;
@@ -201,12 +202,18 @@ export const CMS_MEDIA_CATEGORIES = [
   "Press kit",
 ] as const;
 
-export type CmsMediaCategory = (typeof CMS_MEDIA_CATEGORIES)[number];
+export type CmsMediaCategory = string;
+
+export type CmsMediaCategoryConfig = {
+  id: string;
+  name: string;
+  actionLabel: string;
+};
 
 export type CmsMediaItem = {
   id: string;
   title: string;
-  type: CmsMediaCategory;
+  type: string;
   outlet: string;
   date: string;
   summary: string;

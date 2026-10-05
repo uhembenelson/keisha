@@ -104,6 +104,15 @@
     "mediaPageDetailLabel": "View details",
     "mediaPageOpenLinkFallback": "Open link",
     "mediaPageBackLabel": "Media + press",
+    "mediaCategories": [
+      { "id": "media-category-interviews", "name": "Interviews", "actionLabel": "Watch interview" },
+      { "id": "media-category-features", "name": "Features", "actionLabel": "Read feature" },
+      { "id": "media-category-appearances", "name": "Appearances", "actionLabel": "View appearance" },
+      { "id": "media-category-videos", "name": "Videos", "actionLabel": "Watch video" },
+      { "id": "media-category-podcast-vlogcast", "name": "Podcast / vlogcast", "actionLabel": "Listen or watch" },
+      { "id": "media-category-press-release", "name": "Press release", "actionLabel": "Read press release" },
+      { "id": "media-category-press-kit", "name": "Press kit", "actionLabel": "Open press kit" }
+    ],
     "merchEyebrow": "MERCH",
     "merchTitle": "Wear the Story. Carry the Brand.",
     "merchDescription": "Kreative Kreations merchandise is coming soon from book-inspired pieces to branded items for readers, supporters, and fellow storytellers.",

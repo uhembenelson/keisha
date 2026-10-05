@@ -3,7 +3,7 @@ import "server-only";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { CMS_MEDIA_CATEGORIES, CMS_MERCH_CATEGORIES, type CmsContent, type CmsHomepageCreativeRole, type CmsHomepageSection, type CmsHomepageSectionId, type CmsMediaCategory, type CmsMerchCategory, type CmsSocialLink } from "@/lib/cms-types";
+import { CMS_MEDIA_CATEGORIES, CMS_MERCH_CATEGORIES, type CmsContent, type CmsHomepageCreativeRole, type CmsHomepageSection, type CmsHomepageSectionId, type CmsMediaCategory, type CmsMediaCategoryConfig, type CmsMerchCategory, type CmsSocialLink } from "@/lib/cms-types";
 import { getMongoDatabase } from "@/lib/mongodb";
 
 const dataDirectory = path.join(process.cwd(), "data");
@@ -65,8 +65,22 @@ function normalizeHomepageSections(sections?: CmsHomepageSection[]) {
   return normalized;
 }
 
+const defaultMediaActionLabels: Record<string, string> = {
+  Interviews: "Watch interview",
+  Features: "Read feature",
+  Appearances: "View appearance",
+  Videos: "Watch video",
+  "Podcast / vlogcast": "Listen or watch",
+  "Press release": "Read press release",
+  "Press kit": "Open press kit",
+};
+
+function mediaCategoryId(name: string) {
+  return `media-category-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "category"}`;
+}
+
 function normalizeMediaCategory(value?: string): CmsMediaCategory {
-  const legacyNames: Record<string, CmsMediaCategory> = {
+  const legacyNames: Record<string, string> = {
     Interview: "Interviews",
     Feature: "Features",
     Appearance: "Appearances",
@@ -75,8 +89,37 @@ function normalizeMediaCategory(value?: string): CmsMediaCategory {
     "Press Release": "Press release",
     "Press Kit": "Press kit",
   };
-  if (value && CMS_MEDIA_CATEGORIES.includes(value as CmsMediaCategory)) return value as CmsMediaCategory;
-  return legacyNames[value || ""] || "Interviews";
+  return legacyNames[value || ""] || value?.trim() || "Interviews";
+}
+
+function normalizeMediaCategories(categories: CmsMediaCategoryConfig[] | undefined, media: CmsContent["media"]) {
+  const source = Array.isArray(categories) && categories.length > 0
+    ? categories
+    : CMS_MEDIA_CATEGORIES.map((name) => ({ id: mediaCategoryId(name), name, actionLabel: defaultMediaActionLabels[name] || "Open link" }));
+  const normalized: CmsMediaCategoryConfig[] = [];
+  const names = new Set<string>();
+  const ids = new Set<string>();
+  function uniqueId(preferredId: string | undefined, name: string) {
+    const base = preferredId?.trim() || mediaCategoryId(name);
+    let id = base;
+    let suffix = 2;
+    while (ids.has(id)) id = `${base}-${suffix++}`;
+    ids.add(id);
+    return id;
+  }
+  for (const category of source) {
+    const name = category?.name?.trim();
+    if (!name || names.has(name.toLowerCase())) continue;
+    names.add(name.toLowerCase());
+    normalized.push({ id: uniqueId(category.id, name), name, actionLabel: category.actionLabel?.trim() || "Open link" });
+  }
+  for (const item of media) {
+    const name = normalizeMediaCategory(item.type);
+    if (names.has(name.toLowerCase())) continue;
+    names.add(name.toLowerCase());
+    normalized.push({ id: uniqueId(undefined, name), name, actionLabel: item.mediaCtaLabel || defaultMediaActionLabels[name] || "Open link" });
+  }
+  return normalized.length > 0 ? normalized : [{ id: "media-category-general", name: "General", actionLabel: "Open link" }];
 }
 
 function normalizeMerchCategory(value?: string): CmsMerchCategory {
@@ -104,6 +147,7 @@ async function readJsonContent(): Promise<CmsContent> {
 
 function normalizeCmsContent(content: CmsContent): CmsContent {
   const settings = content.settings;
+  const mediaCategories = normalizeMediaCategories(settings.mediaCategories, content.media);
   const heroPromotionType = ["book", "newsletter", "none"].includes(settings.heroPromotionType)
     ? settings.heroPromotionType
     : settings.heroFeatureEnabled === false
@@ -228,6 +272,7 @@ function normalizeCmsContent(content: CmsContent): CmsContent {
       mediaPageDetailLabel: settings.mediaPageDetailLabel || "View details",
       mediaPageOpenLinkFallback: settings.mediaPageOpenLinkFallback || "Open link",
       mediaPageBackLabel: settings.mediaPageBackLabel || "Media + press",
+      mediaCategories,
       merchEyebrow: settings.merchEyebrow || "MERCH",
       merchTitle: settings.merchTitle || "Wear the Story. Carry the Brand.",
       merchDescription:
@@ -245,14 +290,17 @@ function normalizeCmsContent(content: CmsContent): CmsContent {
     })),
     news: content.news.map((item) => ({ ...item, image: item.image || "", gallery: item.gallery || [] })),
     events: content.events.map((item) => ({ ...item, image: item.image || "", gallery: item.gallery || [] })),
-    media: content.media.map((item) => ({
-      ...item,
-      type: normalizeMediaCategory(item.type),
-      mediaUrl: item.mediaUrl || "",
-      mediaCtaLabel: item.mediaCtaLabel || "Watch or listen",
-      image: item.image || "",
-      gallery: item.gallery || [],
-    })),
+    media: content.media.map((item) => {
+      const type = normalizeMediaCategory(item.type);
+      return {
+        ...item,
+        type,
+        mediaUrl: item.mediaUrl || "",
+        mediaCtaLabel: item.mediaCtaLabel || mediaCategories.find((category) => category.name === type)?.actionLabel || "Open link",
+        image: item.image || "",
+        gallery: item.gallery || [],
+      };
+    }),
     merch: (Array.isArray(content.merch) ? content.merch : []).map((product) => ({
       ...product,
       category: normalizeMerchCategory(product.category),

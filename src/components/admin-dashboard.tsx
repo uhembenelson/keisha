@@ -39,7 +39,6 @@ import type {
   CmsContent,
   CmsEvent,
   CmsHomepageSectionId,
-  CmsMediaCategory,
   CmsMediaItem,
   CmsMerchCategory,
   CmsMerchProduct,
@@ -48,7 +47,7 @@ import type {
   CmsSocialLink,
   CmsSubmissions,
 } from "@/lib/cms-types";
-import { CMS_MEDIA_CATEGORIES, CMS_MERCH_CATEGORIES, HERO_NEWSLETTER_LIMITS, HOMEPAGE_STAT_LIMITS, homepageStatsFitLayout } from "@/lib/cms-types";
+import { CMS_MERCH_CATEGORIES, HERO_NEWSLETTER_LIMITS, HOMEPAGE_STAT_LIMITS, homepageStatsFitLayout } from "@/lib/cms-types";
 import { AdminImageUploader } from "@/components/admin-image-uploader";
 import { AdminBookFileUploader } from "@/components/admin-book-file-uploader";
 import { SocialIcon } from "@/components/social-icon";
@@ -79,16 +78,6 @@ const homepageSectionLabels: Record<CmsHomepageSectionId, string> = {
   merch: "Merch",
   connect: "Connect & contact",
   newsletter: "Newsletter",
-};
-
-const mediaCategoryActionLabels: Record<CmsMediaCategory, string> = {
-  Interviews: "Watch interview",
-  Features: "Read feature",
-  Appearances: "View appearance",
-  Videos: "Watch video",
-  "Podcast / vlogcast": "Listen or watch",
-  "Press release": "Read press release",
-  "Press kit": "Open press kit",
 };
 
 type MerchOrder = { id: string; status: string; customerEmail?: string; customerName?: string; amountTotal: number; currency: string; createdAt: string; items: { name: string; quantity: number }[] };
@@ -246,6 +235,8 @@ export function AdminDashboard() {
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [editing, setEditing] = useState<Record<CollectionKey, number | null>>({ books: null, merch: null, news: null, events: null, media: null });
+  const [mediaCategoryDraft, setMediaCategoryDraft] = useState<{ id?: string; name: string; actionLabel: string } | null>(null);
+  const [mediaCategoryError, setMediaCategoryError] = useState("");
   const [selectedInquiryId, setSelectedInquiryId] = useState<string | null>(null);
   const [selectedSubscriberId, setSelectedSubscriberId] = useState<string | null>(null);
   const [draggedHomepageSection, setDraggedHomepageSection] = useState<CmsHomepageSectionId | null>(null);
@@ -273,6 +264,13 @@ export function AdminDashboard() {
       })
       .catch((error: Error) => setNotice({ kind: "error", message: error.message }));
   }, []);
+
+  useEffect(() => {
+    if (editing.media === null && !mediaCategoryDraft) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, [editing.media, mediaCategoryDraft]);
 
   async function savePaymentConfiguration() {
     setPaymentSaving(true);
@@ -373,16 +371,18 @@ export function AdminDashboard() {
     setDirty(true);
   }
 
-  function addItem(collection: CollectionKey, mediaCategory: CmsMediaCategory = "Interviews") {
+  function addItem(collection: CollectionKey, requestedMediaCategory?: string) {
     const nextIndex = content?.[collection].length ?? 0;
     setContent((current) => {
       if (!current) return current;
+      const mediaCategory = requestedMediaCategory || current.settings.mediaCategories[0]?.name || "General";
+      const mediaActionLabel = current.settings.mediaCategories.find((category) => category.name === mediaCategory)?.actionLabel || "Open link";
       const entry = {
         books: { id: newId("book"), slug: "new-book", title: "New book", category: "", price: "", availability: "coming-soon", purchaseUrl: "", retailers: [], downloadUrl: "", cover: "", gallery: [], shortDescription: "", description: "", published: false } satisfies CmsBook,
         merch: { id: newId("merch"), name: "New product", category: "Other", shortDescription: "", price: "", buyUrl: "", buttonText: "Shop Now", image: "", published: false } satisfies CmsMerchProduct,
         news: { id: newId("news"), slug: "new-update", title: "New update", date: new Date().toISOString().slice(0, 10), excerpt: "", body: "", image: "", gallery: [], published: false } satisfies CmsNewsItem,
         events: { id: newId("event"), title: "New event", date: "", location: "", description: "", image: "", gallery: [], published: false } satisfies CmsEvent,
-        media: { id: newId("media"), title: `New ${mediaCategory.toLowerCase()} item`, type: mediaCategory, outlet: "", date: "", summary: "", mediaUrl: "", mediaCtaLabel: mediaCategoryActionLabels[mediaCategory], image: "", gallery: [], published: false } satisfies CmsMediaItem,
+        media: { id: newId("media"), title: `New ${mediaCategory.toLowerCase()} item`, type: mediaCategory, outlet: "", date: "", summary: "", mediaUrl: "", mediaCtaLabel: mediaActionLabel, image: "", gallery: [], published: false } satisfies CmsMediaItem,
       }[collection];
       return { ...current, [collection]: [...current[collection], entry] } as CmsContent;
     });
@@ -390,8 +390,108 @@ export function AdminDashboard() {
     setDirty(true);
   }
 
+  function addMediaCategory() {
+    setMediaCategoryError("");
+    setMediaCategoryDraft({ name: "", actionLabel: "Open link" });
+  }
+
+  function editMediaCategory(id: string) {
+    const category = content?.settings.mediaCategories.find((entry) => entry.id === id);
+    if (category) {
+      setMediaCategoryError("");
+      setMediaCategoryDraft({ ...category });
+    }
+  }
+
+  async function persistMediaCategoryChange(nextContent: CmsContent, successMessage: string) {
+    setSaving(true);
+    try {
+      const response = await fetch("/api/admin/content", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(nextContent),
+      });
+      const result = await response.json() as { error?: string; content?: CmsContent };
+      if (!response.ok) throw new Error(result.error || "The category could not be saved.");
+      setContent(result.content || nextContent);
+      setDirty(false);
+      setNotice({ kind: "success", message: successMessage });
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "The category could not be saved.";
+      if (mediaCategoryDraft) setMediaCategoryError(message);
+      else setNotice({ kind: "error", message });
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveMediaCategoryDraft() {
+    if (!content || !mediaCategoryDraft) return;
+    const name = mediaCategoryDraft.name.trim();
+    const actionLabel = mediaCategoryDraft.actionLabel.trim();
+    if (!name || !actionLabel) {
+      setMediaCategoryError("Enter a category name and default button text.");
+      return;
+    }
+    const duplicate = content.settings.mediaCategories.some((category) => category.id !== mediaCategoryDraft.id && category.name.trim().toLowerCase() === name.toLowerCase());
+    if (duplicate) {
+      setMediaCategoryError("That Media + Press category already exists.");
+      return;
+    }
+    const existing = mediaCategoryDraft.id ? content.settings.mediaCategories.find((category) => category.id === mediaCategoryDraft.id) : undefined;
+    const category = { id: mediaCategoryDraft.id || newId("media-category"), name, actionLabel };
+    const nextContent: CmsContent = {
+      ...content,
+      settings: {
+        ...content.settings,
+        mediaCategories: existing
+          ? content.settings.mediaCategories.map((entry) => entry.id === existing.id ? category : entry)
+          : [...content.settings.mediaCategories, category],
+      },
+      media: existing && existing.name !== name
+        ? content.media.map((item) => item.type === existing.name ? { ...item, type: name, mediaCtaLabel: item.mediaCtaLabel === existing.actionLabel ? actionLabel : item.mediaCtaLabel } : item)
+        : content.media,
+    };
+    if (await persistMediaCategoryChange(nextContent, existing ? "Category updated." : "Category created.")) {
+      setMediaCategoryDraft(null);
+      setMediaCategoryError("");
+    }
+  }
+
+  async function removeMediaCategory(id: string) {
+    if (!content) return;
+    const category = content.settings.mediaCategories.find((entry) => entry.id === id);
+    const replacement = content.settings.mediaCategories.find((entry) => entry.id !== id);
+    if (!category || !replacement) {
+      setNotice({ kind: "error", message: "Keep at least one Media + Press category." });
+      return;
+    }
+    const itemCount = content.media.filter((item) => item.type === category.name).length;
+    const message = itemCount > 0
+      ? `Delete “${category.name}”? Its ${itemCount} media ${itemCount === 1 ? "item" : "items"} will move to “${replacement.name}”.`
+      : `Delete the “${category.name}” category?`;
+    if (!window.confirm(message)) return;
+    const nextContent: CmsContent = {
+      ...content,
+      settings: { ...content.settings, mediaCategories: content.settings.mediaCategories.filter((entry) => entry.id !== id) },
+      media: content.media.map((item) => item.type === category.name ? { ...item, type: replacement.name, mediaCtaLabel: item.mediaCtaLabel === category.actionLabel ? replacement.actionLabel : item.mediaCtaLabel } : item),
+    };
+    await persistMediaCategoryChange(nextContent, itemCount > 0 ? `Category removed. Existing items moved to ${replacement.name}.` : "Category removed.");
+  }
+
   async function save() {
     if (!content) return false;
+    const mediaCategoryNames = content.settings.mediaCategories.map((category) => category.name.trim().toLowerCase());
+    if (mediaCategoryNames.some((name) => !name) || new Set(mediaCategoryNames).size !== mediaCategoryNames.length) {
+      setNotice({ kind: "error", message: "Every Media + Press category needs a unique name." });
+      return false;
+    }
+    if (content.settings.mediaCategories.some((category) => !category.actionLabel.trim())) {
+      setNotice({ kind: "error", message: "Every Media + Press category needs default public button text." });
+      return false;
+    }
     if (!homepageStatsFitLayout(content.settings)) {
       setNotice({ kind: "error", message: "A homepage statistic exceeds its layout-safe character limit." });
       return false;
@@ -452,7 +552,8 @@ export function AdminDashboard() {
   }
 
   async function saveAndClose(collection: CollectionKey) {
-    if (await save()) setEditing((current) => ({ ...current, [collection]: null }));
+    setEditing((current) => ({ ...current, [collection]: null }));
+    await save();
   }
 
   async function logout() {
@@ -586,24 +687,31 @@ export function AdminDashboard() {
           </section>}
 
           {tab === "media" && <section><CollectionHeader title="Media + Press" copy="Add and edit interviews, features, appearances, videos, podcasts, press releases, and press kits." onAdd={() => addItem("media")} />
+            <div className="mt-7 rounded-2xl border border-charcoal/10 bg-[#fffdf9] p-5 shadow-sm sm:p-6">
+              <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center"><div><p className="font-display text-2xl">Manage categories</p><p className="mt-1 text-sm leading-6 text-charcoal/55">Create, rename, or remove categories and choose the default public button text for new items.</p></div><button type="button" onClick={addMediaCategory} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-charcoal px-5 py-2.5 text-sm font-semibold text-cream"><Plus className="size-4" />Add category</button></div>
+              <div className="mt-5 overflow-hidden rounded-xl border border-charcoal/10 bg-white">
+                {content.settings.mediaCategories.map((category, index) => <div key={category.id} className={`flex flex-col gap-3 p-4 sm:flex-row sm:items-center ${index > 0 ? "border-t border-charcoal/10" : ""}`}><div className="min-w-0 flex-1"><p className="font-semibold text-charcoal">{category.name}</p><p className="mt-1 text-xs text-charcoal/45">Default button: {category.actionLabel} · {content.media.filter((item) => item.type === category.name).length} items</p></div><div className="flex items-center gap-2"><button type="button" onClick={() => editMediaCategory(category.id)} className="inline-flex items-center gap-2 rounded-full border border-charcoal/15 px-4 py-2 text-xs font-semibold text-charcoal"><Pencil className="size-3.5" />Edit</button><button type="button" onClick={() => void removeMediaCategory(category.id)} disabled={saving} className="grid size-9 place-items-center rounded-full border border-red-200 text-red-700 transition hover:bg-red-50 disabled:opacity-50" aria-label={`Delete ${category.name}`}><Trash2 className="size-4" /></button></div></div>)}
+              </div>
+            </div>
             <div className="mt-7 rounded-2xl border border-gold/35 bg-[#fff8e9] p-5 sm:p-6">
               <div><p className="font-display text-2xl">What would you like to add?</p><p className="mt-1 text-sm leading-6 text-charcoal/55">Choose a category. A new draft will open with the correct public button text already filled in.</p></div>
               <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {CMS_MEDIA_CATEGORIES.map((category) => <button key={category} type="button" onClick={() => addItem("media", category)} className="flex items-center justify-between gap-3 rounded-xl border border-charcoal/10 bg-white px-4 py-3 text-left text-sm font-semibold text-charcoal transition hover:border-burgundy/35 hover:text-burgundy"><span>{category}</span><span className="inline-flex items-center gap-1 text-xs text-charcoal/40"><Plus className="size-3.5" />{content.media.filter((item) => item.type === category).length}</span></button>)}
+                {content.settings.mediaCategories.map((category) => <button key={category.id} type="button" onClick={() => addItem("media", category.name)} className="flex items-center justify-between gap-3 rounded-xl border border-charcoal/10 bg-white px-4 py-3 text-left text-sm font-semibold text-charcoal transition hover:border-burgundy/35 hover:text-burgundy"><span>{category.name}</span><span className="inline-flex items-center gap-1 text-xs text-charcoal/40"><Plus className="size-3.5" />{content.media.filter((item) => item.type === category.name).length}</span></button>)}
               </div>
             </div>
             <AdminTable headers={["Media item", "Category", "Outlet", "Public link", "Status", "Actions"]} empty="No media or press items have been added yet." rows={content.media.map((item, index) => ({ id: item.id, cells: [<TableIdentity key="media" image={item.image} title={item.title} detail={item.date || "No date"} />, item.type || "—", item.outlet || "—", <span key="link" className={`text-xs font-semibold ${item.mediaUrl ? "text-emerald-700" : "text-charcoal/40"}`}>{item.mediaUrl ? "Link added" : "No link"}</span>, <StatusBadge key="status" published={item.published} />, <TableActions key="actions" onEdit={() => setEditing((current) => ({ ...current, media: index }))} onDelete={() => removeItem("media", index)} />] }))} />
-            {editing.media !== null && content.media[editing.media] && <div className="mt-7"><EditorCard title={content.media[editing.media].title} subtitle={content.media[editing.media].published ? "Published" : "Draft"} onDelete={() => removeItem("media", editing.media as number)} onClose={() => setEditing((current) => ({ ...current, media: null }))} onSave={() => void saveAndClose("media")} saving={saving}>
+            {editing.media !== null && content.media[editing.media] && <div role="dialog" aria-modal="true" aria-label={`Edit ${content.media[editing.media].title}`} onMouseDown={(event) => { if (event.target === event.currentTarget) setEditing((current) => ({ ...current, media: null })); }} className="fixed inset-0 z-[80] flex items-center justify-center bg-charcoal/35 p-3 backdrop-blur-[2px] sm:p-6"><div className="max-h-[94vh] w-full max-w-4xl overflow-y-auto rounded-2xl shadow-2xl"><EditorCard title={content.media[editing.media].title} subtitle={content.media[editing.media].published ? "Published" : "Draft"} onDelete={() => removeItem("media", editing.media as number)} onClose={() => setEditing((current) => ({ ...current, media: null }))} onSave={() => void saveAndClose("media")} saving={saving}>
               <Field label="Public title" value={content.media[editing.media].title} onChange={(value) => updateItem("media", editing.media as number, { title: value })} />
-              <label className={labelClass}>Category<select className={inputClass} value={content.media[editing.media].type} onChange={(event) => { const type = event.target.value as CmsMediaCategory; updateItem("media", editing.media as number, { type, mediaCtaLabel: mediaCategoryActionLabels[type] }); }}>{CMS_MEDIA_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
+              <label className={labelClass}>Category<select className={inputClass} value={content.media[editing.media].type} onChange={(event) => { const type = event.target.value; const category = content.settings.mediaCategories.find((entry) => entry.name === type); updateItem("media", editing.media as number, { type, mediaCtaLabel: category?.actionLabel || "Open link" }); }}>{content.settings.mediaCategories.map((category) => <option key={category.id} value={category.name}>{category.name}</option>)}</select></label>
               <Field label="Outlet, show, or publication name" value={content.media[editing.media].outlet} onChange={(value) => updateItem("media", editing.media as number, { outlet: value })} />
               <Field label="Published or appearance date" type="date" value={content.media[editing.media].date} onChange={(value) => updateItem("media", editing.media as number, { date: value })} />
-              <div className="sm:col-span-2 grid gap-5 rounded-xl border-2 border-gold/35 bg-[#fff8e9] p-5 sm:grid-cols-2"><div className="sm:col-span-2"><p className="font-display text-xl text-charcoal">Public watch, listen, read, or download link</p><p className="mt-1 text-xs normal-case leading-5 tracking-normal text-charcoal/55">Paste the full link readers should open. This can be YouTube, a podcast platform, an article, a press release, or a press-kit download.</p></div><Field label="Public link" type="url" placeholder="https://…" value={content.media[editing.media].mediaUrl ?? ""} onChange={(value) => updateItem("media", editing.media as number, { mediaUrl: value })} /><Field label="Button text" placeholder={mediaCategoryActionLabels[content.media[editing.media].type]} value={content.media[editing.media].mediaCtaLabel ?? ""} onChange={(value) => updateItem("media", editing.media as number, { mediaCtaLabel: value })} /></div>
+              <div className="sm:col-span-2 grid gap-5 rounded-xl border-2 border-gold/35 bg-[#fff8e9] p-5 sm:grid-cols-2"><div className="sm:col-span-2"><p className="font-display text-xl text-charcoal">Public watch, listen, read, or download link</p><p className="mt-1 text-xs normal-case leading-5 tracking-normal text-charcoal/55">Paste the full link readers should open. This can be YouTube, a podcast platform, an article, a press release, or a press-kit download.</p></div><Field label="Public link" type="url" placeholder="https://…" value={content.media[editing.media].mediaUrl ?? ""} onChange={(value) => updateItem("media", editing.media as number, { mediaUrl: value })} /><Field label="Button text" placeholder={content.settings.mediaCategories.find((category) => category.name === content.media[editing.media as number].type)?.actionLabel || "Open link"} value={content.media[editing.media].mediaCtaLabel ?? ""} onChange={(value) => updateItem("media", editing.media as number, { mediaCtaLabel: value })} /></div>
               <div className="sm:col-span-2"><TextareaField label="Public description" rows={6} value={content.media[editing.media].summary} onChange={(value) => updateItem("media", editing.media as number, { summary: value })} /></div>
               <div className="sm:col-span-2"><AdminImageUploader label="Main image" images={content.media[editing.media].image ? [content.media[editing.media].image] : []} onChange={(images) => updateItem("media", editing.media as number, { image: images[0] ?? "" })} /></div>
               <div className="sm:col-span-2"><AdminImageUploader label="Additional images" multiple images={content.media[editing.media].gallery ?? []} onChange={(gallery) => updateItem("media", editing.media as number, { gallery })} /></div>
               <div className="sm:col-span-2"><PublishedToggle checked={content.media[editing.media].published} onChange={(published) => updateItem("media", editing.media as number, { published })} /></div>
-            </EditorCard></div>}
+            </EditorCard></div></div>}
+            {mediaCategoryDraft && <div role="dialog" aria-modal="true" aria-label={mediaCategoryDraft.id ? "Edit media category" : "Add media category"} onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) { setMediaCategoryDraft(null); setMediaCategoryError(""); } }} className="fixed inset-0 z-[90] flex items-center justify-center bg-charcoal/35 p-4 backdrop-blur-[2px]"><article className="w-full max-w-xl rounded-2xl border border-charcoal/10 bg-[#fffdf9] p-6 shadow-2xl sm:p-8"><div className="flex items-start justify-between gap-5 border-b border-charcoal/10 pb-5"><div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-burgundy">Media + Press</p><h3 className="mt-2 font-display text-3xl text-charcoal">{mediaCategoryDraft.id ? "Edit category" : "Add category"}</h3></div><button type="button" disabled={saving} onClick={() => { setMediaCategoryDraft(null); setMediaCategoryError(""); }} className="rounded-full p-2 text-charcoal/45 hover:bg-charcoal/5 disabled:opacity-50" aria-label="Close category popup"><X className="size-5" /></button></div>{mediaCategoryError && <div role="alert" className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">{mediaCategoryError}</div>}<div className="mt-6 grid gap-5"><Field label="Category name" maxLength={40} value={mediaCategoryDraft.name} onChange={(name) => { setMediaCategoryError(""); setMediaCategoryDraft((current) => current && { ...current, name }); }} /><Field label="Default public button text" maxLength={40} value={mediaCategoryDraft.actionLabel} onChange={(actionLabel) => { setMediaCategoryError(""); setMediaCategoryDraft((current) => current && { ...current, actionLabel }); }} /></div><div className="mt-7 flex justify-end gap-3 border-t border-charcoal/10 pt-5"><button type="button" disabled={saving} onClick={() => { setMediaCategoryDraft(null); setMediaCategoryError(""); }} className="rounded-full border border-charcoal/15 px-5 py-2.5 text-sm font-semibold text-charcoal disabled:opacity-50">Cancel</button><button type="button" disabled={saving} onClick={() => void saveMediaCategoryDraft()} className="inline-flex items-center gap-2 rounded-full bg-burgundy px-5 py-2.5 text-sm font-semibold text-cream disabled:opacity-60">{saving ? <LoaderCircle className="size-4 animate-spin" /> : <Save className="size-4" />}{saving ? "Saving…" : "Save category"}</button></div></article></div>}
           </section>}
 
           {tab === "orders" && <section>
