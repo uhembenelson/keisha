@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -25,6 +25,7 @@ import {
   PackageCheck,
   Pencil,
   Plus,
+  RefreshCw,
   Save,
   Settings,
   ShoppingBag,
@@ -80,7 +81,10 @@ const homepageSectionLabels: Record<CmsHomepageSectionId, string> = {
   newsletter: "Newsletter",
 };
 
-type MerchOrder = { id: string; status: string; customerEmail?: string; customerName?: string; amountTotal: number; currency: string; createdAt: string; items: { name: string; quantity: number }[] };
+type MerchOrder = { id: string; status: string; customerEmail?: string; customerName?: string; amountTotal: number; currency: string; createdAt: string; printfulOrderId?: number; printfulStatus?: string; printfulError?: string; trackingUrl?: string; items: { name: string; variantName?: string; fulfillment?: string; quantity: number }[] };
+type PrintfulStoreOption = { id: string; name: string; type: string };
+type PrintfulCatalogProduct = { id: number; name: string; image: string; variantCount: number; type: string };
+type PrintfulCatalogVariant = { id: number; name: string; size: string; color: string; colorCode: string; image: string; available: boolean };
 
 const inputClass =
   "mt-2 w-full rounded-xl border border-charcoal/15 bg-white px-4 py-3 text-sm text-charcoal outline-none transition focus:border-burgundy focus:ring-2 focus:ring-burgundy/10";
@@ -243,6 +247,19 @@ export function AdminDashboard() {
   const [notice, setNotice] = useState<{ kind: "success" | "error"; message: string } | null>(null);
   const [paymentSettings, setPaymentSettings] = useState({ publishableKey: "", secretKey: "", webhookSecret: "", secretKeyConfigured: false, webhookSecretConfigured: false, ready: false });
   const [paymentSaving, setPaymentSaving] = useState(false);
+  const [printfulSettings, setPrintfulSettings] = useState({ token: "", storeId: "", autoConfirm: false, tokenConfigured: false, connected: false, webhookConfigured: false });
+  const [printfulSaving, setPrintfulSaving] = useState(false);
+  const [printfulSyncing, setPrintfulSyncing] = useState(false);
+  const [printfulFindingStores, setPrintfulFindingStores] = useState(false);
+  const [printfulStores, setPrintfulStores] = useState<PrintfulStoreOption[]>([]);
+  const [merchWorkspace, setMerchWorkspace] = useState<"products" | "printful" | "page">("products");
+  const [merchDraftId, setMerchDraftId] = useState<string | null>(null);
+  const [merchPrintfulDraft, setMerchPrintfulDraft] = useState({ catalogProductId: "", catalogVariantIds: [] as number[], designUrl: "" });
+  const [printfulCatalog, setPrintfulCatalog] = useState<PrintfulCatalogProduct[]>([]);
+  const [printfulCatalogVariants, setPrintfulCatalogVariants] = useState<PrintfulCatalogVariant[]>([]);
+  const [printfulCatalogLoading, setPrintfulCatalogLoading] = useState(false);
+  const [merchRemoteSaving, setMerchRemoteSaving] = useState(false);
+  const printfulAutoStarted = useRef(false);
   const [orders, setOrders] = useState<MerchOrder[]>([]);
 
   useEffect(() => {
@@ -251,26 +268,28 @@ export function AdminDashboard() {
       fetch("/api/admin/submissions", { cache: "no-store" }),
       fetch("/api/admin/payment-settings", { cache: "no-store" }),
       fetch("/api/admin/orders", { cache: "no-store" }),
+      fetch("/api/admin/printful/settings", { cache: "no-store" }),
     ])
-      .then(async ([contentResponse, submissionsResponse, paymentResponse, ordersResponse]) => {
-        if (!contentResponse.ok || !submissionsResponse.ok || !paymentResponse.ok || !ordersResponse.ok) throw new Error("Could not load the CMS data.");
-        return Promise.all([contentResponse.json() as Promise<CmsContent>, submissionsResponse.json() as Promise<CmsSubmissions>, paymentResponse.json() as Promise<{ publishableKey: string; secretKeyConfigured: boolean; webhookSecretConfigured: boolean; ready: boolean }>, ordersResponse.json() as Promise<{ orders: MerchOrder[] }>]);
+      .then(async ([contentResponse, submissionsResponse, paymentResponse, ordersResponse, printfulResponse]) => {
+        if (!contentResponse.ok || !submissionsResponse.ok || !paymentResponse.ok || !ordersResponse.ok || !printfulResponse.ok) throw new Error("Could not load the CMS data.");
+        return Promise.all([contentResponse.json() as Promise<CmsContent>, submissionsResponse.json() as Promise<CmsSubmissions>, paymentResponse.json() as Promise<{ publishableKey: string; secretKeyConfigured: boolean; webhookSecretConfigured: boolean; ready: boolean }>, ordersResponse.json() as Promise<{ orders: MerchOrder[] }>, printfulResponse.json() as Promise<{ storeId: string; autoConfirm: boolean; tokenConfigured: boolean; connected: boolean; webhookConfigured?: boolean }>]);
       })
-      .then(([contentData, submissionsData, paymentData, orderData]) => {
+      .then(([contentData, submissionsData, paymentData, orderData, printfulData]) => {
         setContent(contentData);
         setSubmissions(submissionsData);
         setPaymentSettings((current) => ({ ...current, ...paymentData }));
         setOrders(orderData.orders);
+        setPrintfulSettings((current) => ({ ...current, ...printfulData }));
       })
       .catch((error: Error) => setNotice({ kind: "error", message: error.message }));
   }, []);
 
   useEffect(() => {
-    if (editing.media === null && !mediaCategoryDraft) return;
+    if (editing.media === null && editing.merch === null && !mediaCategoryDraft) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = previousOverflow; };
-  }, [editing.media, mediaCategoryDraft]);
+  }, [editing.media, editing.merch, mediaCategoryDraft]);
 
   async function savePaymentConfiguration() {
     setPaymentSaving(true);
@@ -285,6 +304,188 @@ export function AdminDashboard() {
       setNotice({ kind: "error", message: error instanceof Error ? error.message : "Payment settings could not be saved." });
     } finally {
       setPaymentSaving(false);
+    }
+  }
+
+  async function savePrintfulConfiguration(silent = false) {
+    setPrintfulSaving(true);
+    if (!silent) setNotice(null);
+    try {
+      const response = await fetch("/api/admin/printful/settings", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ token: printfulSettings.token, storeId: printfulSettings.storeId, autoConfirm: printfulSettings.autoConfirm }) });
+      const result = await response.json() as { error?: string; storeId?: string; autoConfirm?: boolean; tokenConfigured?: boolean; connected?: boolean; webhookConfigured?: boolean };
+      if (!response.ok) throw new Error(result.error || "Printful could not be connected.");
+      setPrintfulSettings((current) => ({ ...current, ...result, token: "" }));
+      if (!silent) setNotice({ kind: "success", message: result.webhookConfigured ? "Printful is connected and automatic product and fulfillment updates are configured." : "Printful is connected. Product syncing is ready." });
+    } catch (error) {
+      if (!silent) setNotice({ kind: "error", message: error instanceof Error ? error.message : "Printful could not be connected." });
+    } finally {
+      setPrintfulSaving(false);
+    }
+  }
+
+  async function findPrintfulStores() {
+    setPrintfulFindingStores(true);
+    setNotice(null);
+    try {
+      const response = await fetch("/api/admin/printful/stores", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token: printfulSettings.token }),
+      });
+      const result = await response.json().catch(() => ({})) as { error?: string; stores?: PrintfulStoreOption[] };
+      if (!response.ok) throw new Error(result.error || "Your Printful stores could not be loaded.");
+      const stores = result.stores || [];
+      setPrintfulStores(stores);
+      if (stores.length === 1) {
+        setPrintfulSettings((current) => ({ ...current, storeId: stores[0].id }));
+        setNotice({ kind: "success", message: `Found ${stores[0].name}. Store ID ${stores[0].id} has been filled in; save the connection to keep it.` });
+      } else if (stores.length > 1) {
+        setNotice({ kind: "success", message: `Found ${stores.length} stores. Choose the store you want to connect.` });
+      } else {
+        setNotice({ kind: "error", message: "The token is valid, but no Printful stores were returned." });
+      }
+    } catch (error) {
+      setPrintfulStores([]);
+      setNotice({ kind: "error", message: error instanceof Error ? error.message : "Your Printful stores could not be loaded." });
+    } finally {
+      setPrintfulFindingStores(false);
+    }
+  }
+
+  async function syncPrintfulProducts(silent = false) {
+    setPrintfulSyncing(true);
+    if (!silent) setNotice(null);
+    try {
+      const response = await fetch("/api/admin/printful/products", { method: "POST" });
+      const result = await response.json() as { error?: string; content?: CmsContent; imported?: number };
+      if (!response.ok || !result.content) throw new Error(result.error || "Printful products could not be synced.");
+      setContent(result.content);
+      setDirty(false);
+      if (!silent) setNotice({ kind: "success", message: `${result.imported || 0} Printful products synced. New products are now published; existing visibility choices were preserved.` });
+    } catch (error) {
+      if (!silent) setNotice({ kind: "error", message: error instanceof Error ? error.message : "Printful products could not be synced." });
+    } finally {
+      setPrintfulSyncing(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!printfulSettings.connected) return;
+    const initialSync = window.setTimeout(() => {
+      if (!printfulAutoStarted.current) {
+        printfulAutoStarted.current = true;
+        if (!printfulSettings.webhookConfigured) void savePrintfulConfiguration(true);
+      }
+      void syncPrintfulProducts(true);
+    }, 0);
+    const interval = window.setInterval(() => void syncPrintfulProducts(true), 120_000);
+    return () => { window.clearTimeout(initialSync); window.clearInterval(interval); };
+  // The connection flag intentionally starts and stops one background sync loop.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [printfulSettings.connected]);
+
+  function startNewMerch() {
+    if (!content) return;
+    const id = newId("merch");
+    const product: CmsMerchProduct = { id, name: "New product", category: "Other", shortDescription: "", price: "", buyUrl: "", buttonText: "Add to cart", image: "", published: true, fulfillment: "manual", printfulProductId: null, variants: [] };
+    setContent({ ...content, merch: [...content.merch, product] });
+    setEditing((current) => ({ ...current, merch: content.merch.length }));
+    setMerchDraftId(id);
+    setMerchPrintfulDraft({ catalogProductId: "", catalogVariantIds: [], designUrl: "" });
+  }
+
+  async function loadPrintfulCatalog() {
+    if (printfulCatalog.length) return;
+    setPrintfulCatalogLoading(true);
+    try {
+      const response = await fetch("/api/admin/printful/catalog", { cache: "no-store" });
+      const result = await response.json().catch(() => ({})) as { error?: string; products?: PrintfulCatalogProduct[] };
+      if (!response.ok) throw new Error(result.error || "The Printful catalog could not be loaded.");
+      setPrintfulCatalog(result.products || []);
+    } catch (error) {
+      setNotice({ kind: "error", message: error instanceof Error ? error.message : "The Printful catalog could not be loaded." });
+    } finally {
+      setPrintfulCatalogLoading(false);
+    }
+  }
+
+  async function choosePrintfulCatalogProduct(productId: string) {
+    setMerchPrintfulDraft((current) => ({ ...current, catalogProductId: productId, catalogVariantIds: [] }));
+    setPrintfulCatalogVariants([]);
+    if (!productId) return;
+    setPrintfulCatalogLoading(true);
+    try {
+      const response = await fetch(`/api/admin/printful/catalog?productId=${encodeURIComponent(productId)}`, { cache: "no-store" });
+      const result = await response.json().catch(() => ({})) as { error?: string; variants?: PrintfulCatalogVariant[] };
+      if (!response.ok) throw new Error(result.error || "The product variants could not be loaded.");
+      setPrintfulCatalogVariants(result.variants || []);
+    } catch (error) {
+      setNotice({ kind: "error", message: error instanceof Error ? error.message : "The product variants could not be loaded." });
+    } finally {
+      setPrintfulCatalogLoading(false);
+    }
+  }
+
+  function closeMerchEditor() {
+    if (merchDraftId) setContent((current) => current && ({ ...current, merch: current.merch.filter((product) => product.id !== merchDraftId) }));
+    setMerchDraftId(null);
+    setEditing((current) => ({ ...current, merch: null }));
+  }
+
+  function updateMerchVariant(productIndex: number, variantIndex: number, patch: Partial<CmsMerchProduct["variants"][number]>) {
+    if (!content) return;
+    updateItem("merch", productIndex, { variants: content.merch[productIndex].variants.map((variant, index) => index === variantIndex ? { ...variant, ...patch } : variant) });
+  }
+
+  async function saveMerchAndClose() {
+    if (!content || editing.merch === null) return;
+    const product = content.merch[editing.merch];
+    setMerchRemoteSaving(true);
+    setNotice(null);
+    try {
+      if (product.fulfillment === "printful" && !product.printfulProductId) {
+        const catalogVariantIds = merchPrintfulDraft.catalogVariantIds;
+        const response = await fetch("/api/admin/printful/products", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...product, catalogVariantIds, designUrl: merchPrintfulDraft.designUrl }) });
+        const result = await response.json().catch(() => ({})) as { error?: string; content?: CmsContent };
+        if (!response.ok || !result.content) throw new Error(result.error || "The product could not be created in Printful.");
+        setContent(result.content);
+        setDirty(false);
+        setNotice({ kind: "success", message: "Product created in Printful and published on the website." });
+      } else {
+        if (product.fulfillment === "printful" && product.printfulProductId) {
+          const response = await fetch("/api/admin/printful/products", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: product.printfulProductId, name: product.name, variants: product.variants.map((variant) => ({ id: variant.printfulSyncVariantId, price: variant.price, sku: variant.sku })) }) });
+          const result = await response.json().catch(() => ({})) as { error?: string };
+          if (!response.ok) throw new Error(result.error || "Printful could not be updated.");
+        }
+        const saved = await save();
+        if (!saved) return;
+        setNotice({ kind: "success", message: product.fulfillment === "printful" ? "Product updated on the website and in Printful." : "Product saved and published on the website." });
+      }
+      setMerchDraftId(null);
+      setEditing((current) => ({ ...current, merch: null }));
+    } catch (error) {
+      setNotice({ kind: "error", message: error instanceof Error ? error.message : "The product could not be saved." });
+    } finally {
+      setMerchRemoteSaving(false);
+    }
+  }
+
+  async function toggleMerchPublished(index: number) {
+    if (!content) return;
+    const previous = content;
+    const product = content.merch[index];
+    const nextPublished = !product.published;
+    const next = { ...content, merch: content.merch.map((item, itemIndex) => itemIndex === index ? { ...item, published: nextPublished } : item) };
+    setContent(next);
+    try {
+      const response = await fetch("/api/admin/content", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(next) });
+      const result = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) throw new Error(result.error || "Product visibility could not be updated.");
+      setDirty(false);
+      setNotice({ kind: "success", message: `${product.name} is now ${nextPublished ? "visible on the website" : "hidden from the website"}.` });
+    } catch (error) {
+      setContent(previous);
+      setNotice({ kind: "error", message: error instanceof Error ? error.message : "Product visibility could not be updated." });
     }
   }
 
@@ -379,7 +580,7 @@ export function AdminDashboard() {
       const mediaActionLabel = current.settings.mediaCategories.find((category) => category.name === mediaCategory)?.actionLabel || "Open link";
       const entry = {
         books: { id: newId("book"), slug: "new-book", title: "New book", category: "", price: "", availability: "coming-soon", purchaseUrl: "", retailers: [], downloadUrl: "", cover: "", gallery: [], shortDescription: "", description: "", published: false } satisfies CmsBook,
-        merch: { id: newId("merch"), name: "New product", category: "Other", shortDescription: "", price: "", buyUrl: "", buttonText: "Shop Now", image: "", published: false } satisfies CmsMerchProduct,
+        merch: { id: newId("merch"), name: "New product", category: "Other", shortDescription: "", price: "", buyUrl: "", buttonText: "Add to cart", image: "", published: false, fulfillment: "manual", printfulProductId: null, variants: [] } satisfies CmsMerchProduct,
         news: { id: newId("news"), slug: "new-update", title: "New update", date: new Date().toISOString().slice(0, 10), excerpt: "", body: "", image: "", gallery: [], published: false } satisfies CmsNewsItem,
         events: { id: newId("event"), title: "New event", date: "", location: "", description: "", image: "", gallery: [], published: false } satisfies CmsEvent,
         media: { id: newId("media"), title: `New ${mediaCategory.toLowerCase()} item`, type: mediaCategory, outlet: "", date: "", summary: "", mediaUrl: "", mediaCtaLabel: mediaActionLabel, image: "", gallery: [], published: false } satisfies CmsMediaItem,
@@ -650,8 +851,21 @@ export function AdminDashboard() {
           </section>}
 
           {tab === "merch" && <section>
-            <CollectionHeader title="Merch" copy="Manage the coming-soon message now, then add, update, publish, or remove products whenever the shop is ready." onAdd={() => addItem("merch")} />
-            <div className="mt-7 rounded-2xl border border-gold/35 bg-[#fff8e9] p-5 sm:p-6">
+            <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end"><div><p className="section-kicker">Commerce workspace</p><h2 className="mt-3 font-display text-4xl">Merch</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-charcoal/60">Manage products, Printful fulfillment, and public page content in separate, focused areas.</p></div><button type="button" onClick={startNewMerch} className="inline-flex w-fit items-center gap-2 rounded-full bg-burgundy px-5 py-2.5 text-sm font-semibold text-cream transition hover:bg-charcoal"><Plus className="size-4" />Add new merch</button></div>
+            <div className="mt-7 flex gap-1 overflow-x-auto rounded-xl border border-charcoal/10 bg-white p-1 shadow-sm">{([["products", "Products"], ["printful", "Printful setup"], ["page", "Page content"]] as const).map(([id, label]) => <button key={id} type="button" onClick={() => setMerchWorkspace(id)} className={`min-w-fit flex-1 rounded-lg px-5 py-3 text-sm font-semibold transition ${merchWorkspace === id ? "bg-charcoal text-cream shadow-sm" : "text-charcoal/55 hover:bg-charcoal/5 hover:text-charcoal"}`}>{label}</button>)}</div>
+            {merchWorkspace === "printful" && <div className="mt-7 rounded-2xl border border-charcoal/10 bg-charcoal p-5 text-cream shadow-sm sm:p-7">
+              <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start"><div><div className="flex items-center gap-3"><p className="font-display text-2xl">Printful fulfillment</p><span className={`rounded-full px-3 py-1 text-[0.65rem] font-bold uppercase tracking-[0.12em] ${printfulSettings.connected ? "bg-emerald-400/15 text-emerald-300" : "bg-white/10 text-cream/55"}`}>{printfulSettings.connected ? "Connected" : "Not connected"}</span></div><p className="mt-2 max-w-2xl text-sm leading-6 text-cream/60">Connect your Printful private token, sync store products and variants, and automatically send paid Stripe orders to Printful. You can still use Add product above for merchandise fulfilled manually.</p></div>{printfulSettings.connected && <div className="flex shrink-0 flex-wrap gap-2"><a href="https://www.printful.com/dashboard/store" target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-full border border-white/20 px-5 py-2.5 text-sm font-semibold text-cream">Create in Printful <ExternalLink className="size-4" /></a><button type="button" onClick={() => void syncPrintfulProducts()} disabled={printfulSyncing} className="inline-flex items-center justify-center gap-2 rounded-full bg-gold px-5 py-2.5 text-sm font-bold text-charcoal disabled:opacity-60">{printfulSyncing ? <LoaderCircle className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}{printfulSyncing ? "Syncing…" : "Sync products"}</button></div>}</div>
+              <div className="mt-6 grid gap-5 border-t border-white/10 pt-6 sm:grid-cols-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.12em] text-cream/55">Private token<input type="password" autoComplete="new-password" value={printfulSettings.token} onChange={(event) => setPrintfulSettings((current) => ({ ...current, token: event.target.value }))} placeholder={printfulSettings.tokenConfigured ? "Token saved — enter a new one to replace it" : "Printful private token"} className="mt-2 w-full rounded-xl border border-white/15 bg-white/8 px-4 py-3 text-sm normal-case tracking-normal text-cream outline-none placeholder:text-cream/30 focus:border-gold" /></label>
+                <div>
+                  <div className="flex items-center justify-between gap-3"><label htmlFor="printful-store-id" className="text-xs font-semibold uppercase tracking-[0.12em] text-cream/55">Store ID <span className="normal-case tracking-normal text-cream/35">(account-level tokens only)</span></label><button type="button" onClick={() => void findPrintfulStores()} disabled={printfulFindingStores || (!printfulSettings.token && !printfulSettings.tokenConfigured)} className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-gold transition hover:text-cream disabled:cursor-not-allowed disabled:opacity-40">{printfulFindingStores ? <LoaderCircle className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}{printfulFindingStores ? "Checking…" : "Find my stores"}</button></div>
+                  {printfulStores.length > 0 ? <select id="printful-store-id" value={printfulSettings.storeId} onChange={(event) => setPrintfulSettings((current) => ({ ...current, storeId: event.target.value }))} className="mt-2 w-full rounded-xl border border-white/15 bg-charcoal px-4 py-3 text-sm normal-case tracking-normal text-cream outline-none focus:border-gold"><option value="">Choose a Printful store</option>{printfulStores.map((store) => <option key={store.id} value={store.id}>{store.name} — ID {store.id}{store.type ? ` (${store.type})` : ""}</option>)}</select> : <input id="printful-store-id" value={printfulSettings.storeId} onChange={(event) => setPrintfulSettings((current) => ({ ...current, storeId: event.target.value }))} placeholder="Optional store ID" className="mt-2 w-full rounded-xl border border-white/15 bg-white/8 px-4 py-3 text-sm normal-case tracking-normal text-cream outline-none placeholder:text-cream/30 focus:border-gold" />}
+                </div>
+                <label className="sm:col-span-2 flex cursor-pointer items-start gap-3 rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-cream"><input type="checkbox" checked={printfulSettings.autoConfirm} onChange={(event) => setPrintfulSettings((current) => ({ ...current, autoConfirm: event.target.checked }))} className="mt-1 size-4 accent-gold" /><span><strong className="block">Automatically submit paid orders for fulfillment</strong><span className="mt-1 block text-xs leading-5 text-cream/50">When enabled, Printful charges your configured Printful billing method after Stripe confirms customer payment. Leave off to create draft orders for manual review.</span></span></label>
+              </div>
+              <div className="mt-5 flex flex-wrap items-center justify-between gap-4"><p className="text-xs leading-5 text-cream/45">Token scopes needed: sync_products/read, sync_products/write, orders, and webhooks.</p><button type="button" onClick={() => void savePrintfulConfiguration()} disabled={printfulSaving} className="inline-flex items-center gap-2 rounded-full bg-cream px-5 py-2.5 text-sm font-semibold text-charcoal disabled:opacity-60">{printfulSaving ? <LoaderCircle className="size-4 animate-spin" /> : <Save className="size-4" />}{printfulSaving ? "Connecting…" : "Save and test connection"}</button></div>
+            </div>}
+            {merchWorkspace === "page" && <div className="mt-7 rounded-2xl border border-gold/35 bg-[#fff8e9] p-5 sm:p-6">
               <div><p className="font-display text-2xl">Merch page introduction</p><p className="mt-1 text-sm leading-6 text-charcoal/55">This message is shown above products. When no products are published, it becomes the complete Coming Soon page.</p></div>
               <div className="mt-6 grid gap-5 border-t border-charcoal/10 pt-6 sm:grid-cols-2">
                 <Field label="Small heading" maxLength={30} value={content.settings.merchEyebrow} onChange={(value) => updateSettings("merchEyebrow", value)} />
@@ -659,18 +873,21 @@ export function AdminDashboard() {
                 <div className="sm:col-span-2"><Field label="Main heading" maxLength={90} value={content.settings.merchTitle} onChange={(value) => updateSettings("merchTitle", value)} /></div>
                 <div className="sm:col-span-2"><TextareaField label="Introduction" rows={5} maxLength={300} value={content.settings.merchDescription} onChange={(value) => updateSettings("merchDescription", value)} /></div>
               </div>
-            </div>
-            <AdminTable headers={["Product", "Category", "Price", "Shop link", "Status", "Actions"]} empty="No products yet. The public Merch page is showing the Coming Soon message." rows={content.merch.map((product, index) => ({ id: product.id, cells: [<TableIdentity key="merch" image={product.image} title={product.name} detail={product.shortDescription || "No description"} />, product.category, product.price || "—", <span key="link" className={`text-xs font-semibold ${product.buyUrl ? "text-emerald-700" : "text-charcoal/40"}`}>{product.buyUrl ? "Link added" : "No link"}</span>, <StatusBadge key="status" published={product.published} />, <TableActions key="actions" onEdit={() => setEditing((current) => ({ ...current, merch: index }))} onDelete={() => removeItem("merch", index)} />] }))} />
-            {editing.merch !== null && content.merch[editing.merch] && <div className="mt-7"><EditorCard title={content.merch[editing.merch].name} subtitle={content.merch[editing.merch].published ? "Published product" : "Draft product"} onDelete={() => removeItem("merch", editing.merch as number)} onClose={() => setEditing((current) => ({ ...current, merch: null }))} onSave={() => void saveAndClose("merch")} saving={saving}>
+            </div>}
+            {merchWorkspace === "products" && <><div className="mt-7 flex flex-col justify-between gap-3 rounded-xl border border-charcoal/10 bg-white px-5 py-4 sm:flex-row sm:items-center"><p className="text-sm leading-6 text-charcoal/60">Products brought in from Printful appear here. Use the status button to show or hide each product immediately.</p>{printfulSettings.connected && <button type="button" onClick={() => void syncPrintfulProducts()} disabled={printfulSyncing} className="inline-flex w-fit shrink-0 items-center gap-2 rounded-full bg-charcoal px-4 py-2 text-xs font-semibold text-cream disabled:opacity-60">{printfulSyncing ? <LoaderCircle className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}{printfulSyncing ? "Syncing…" : "Sync from Printful"}</button>}</div><AdminTable headers={["Product", "Category", "Price", "Fulfillment", "Website status", "Actions"]} empty="No products yet. Add merch here or sync products from Printful." rows={content.merch.map((product, index) => ({ id: product.id, cells: [<TableIdentity key="merch" image={product.image} title={product.name} detail={product.shortDescription || "No description"} />, product.category, product.price || "—", <span key="fulfillment" className={`text-xs font-semibold ${product.fulfillment === "printful" ? "text-emerald-700" : "text-charcoal/50"}`}>{product.fulfillment === "printful" ? `Printful · ${product.variants.length} variants` : "Manual"}</span>, <button key="status" type="button" onClick={() => void toggleMerchPublished(index)} aria-label={`${product.published ? "Hide" : "Show"} ${product.name} on website`} title="Click to change website visibility"><StatusBadge published={product.published} /></button>, <TableActions key="actions" onEdit={() => { setMerchDraftId(null); setEditing((current) => ({ ...current, merch: index })); }} onDelete={() => removeItem("merch", index)} />] }))} /></>}
+            {editing.merch !== null && content.merch[editing.merch] && <div role="dialog" aria-modal="true" aria-label={`Edit ${content.merch[editing.merch].name}`} className="fixed inset-0 z-[90] overflow-y-auto bg-[#fffaf1]"><div className="mx-auto min-h-screen max-w-5xl px-3 py-5 sm:px-6 sm:py-8"><EditorCard title={content.merch[editing.merch].name} subtitle={content.merch[editing.merch].printfulProductId ? "Website + Printful product" : merchDraftId ? "New product" : content.merch[editing.merch].published ? "Published product" : "Draft product"} onDelete={() => merchDraftId ? closeMerchEditor() : removeItem("merch", editing.merch as number)} onClose={closeMerchEditor} onSave={() => void saveMerchAndClose()} saving={saving || merchRemoteSaving}>
               <Field label="Product name" value={content.merch[editing.merch].name} onChange={(value) => updateItem("merch", editing.merch as number, { name: value })} />
               <label className={labelClass}>Product type<select className={inputClass} value={content.merch[editing.merch].category} onChange={(event) => updateItem("merch", editing.merch as number, { category: event.target.value as CmsMerchCategory })}>{CMS_MERCH_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
               <Field label="Price" placeholder="$24.99" value={content.merch[editing.merch].price} onChange={(value) => updateItem("merch", editing.merch as number, { price: value })} />
               <Field label="Button text" placeholder="Shop Now" maxLength={30} value={content.merch[editing.merch].buttonText} onChange={(value) => updateItem("merch", editing.merch as number, { buttonText: value })} />
+              {!content.merch[editing.merch].printfulProductId && <label className={`${labelClass} sm:col-span-2`}>How should this product be fulfilled?<select className={inputClass} value={content.merch[editing.merch].fulfillment} onChange={(event) => { const fulfillment = event.target.value as "manual" | "printful"; updateItem("merch", editing.merch as number, { fulfillment }); if (fulfillment === "printful") void loadPrintfulCatalog(); }}><option value="manual">Manage on this website only</option><option value="printful">Create it in Printful and on this website</option></select></label>}
+              <div className="sm:col-span-2 rounded-xl border border-charcoal/10 bg-[#fffaf1] p-4"><p className="text-xs font-bold uppercase tracking-[0.12em] text-burgundy">Fulfillment</p><p className="mt-2 text-sm font-semibold text-charcoal">{content.merch[editing.merch].fulfillment === "printful" ? "Printful synced product" : "Website product"}</p><p className="mt-1 text-xs leading-5 text-charcoal/50">{content.merch[editing.merch].fulfillment === "printful" ? "Saving creates or updates this product in Printful and publishes the matching website product." : "Customers use the website checkout. Fulfillment is managed manually."}</p></div>
+              {content.merch[editing.merch].fulfillment === "printful" && !content.merch[editing.merch].printfulProductId && <div className="sm:col-span-2 grid gap-5 rounded-xl border-2 border-gold/35 bg-[#fff8e9] p-5 sm:grid-cols-2"><div className="sm:col-span-2"><p className="font-semibold text-charcoal">Printful product setup</p><p className="mt-1 text-xs leading-5 text-charcoal/55">Choose a blank product, select the sizes and colors to sell, then add the artwork Printful should print.</p></div><label className={`${labelClass} sm:col-span-2`}>Blank Printful product<select className={inputClass} value={merchPrintfulDraft.catalogProductId} disabled={printfulCatalogLoading} onFocus={() => void loadPrintfulCatalog()} onChange={(event) => void choosePrintfulCatalogProduct(event.target.value)}><option value="">{printfulCatalogLoading && !printfulCatalog.length ? "Loading Printful catalog…" : "Choose a product"}</option>{printfulCatalog.map((product) => <option key={product.id} value={product.id}>{product.name} · {product.variantCount} variants</option>)}</select></label>{printfulCatalogVariants.length > 0 && <fieldset className="sm:col-span-2"><legend className={labelClass}>Sizes and colors to sell <span className="normal-case tracking-normal text-charcoal/40">({merchPrintfulDraft.catalogVariantIds.length} selected)</span></legend><div className="mt-2 grid max-h-72 gap-2 overflow-y-auto rounded-xl border border-charcoal/10 bg-white p-3 sm:grid-cols-2">{printfulCatalogVariants.map((variant) => <label key={variant.id} className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm ${merchPrintfulDraft.catalogVariantIds.includes(variant.id) ? "border-burgundy bg-burgundy/5" : "border-charcoal/10"}`}><input type="checkbox" disabled={!variant.available} checked={merchPrintfulDraft.catalogVariantIds.includes(variant.id)} onChange={(event) => setMerchPrintfulDraft((current) => ({ ...current, catalogVariantIds: event.target.checked ? [...current.catalogVariantIds, variant.id] : current.catalogVariantIds.filter((id) => id !== variant.id) }))} className="size-4 accent-burgundy" /><span><span className="block font-semibold text-charcoal">{variant.name}</span><span className="mt-0.5 block text-xs text-charcoal/45">{variant.color || "Default color"}{variant.size ? ` · ${variant.size}` : ""}{!variant.available ? " · Unavailable" : ""}</span></span></label>)}</div></fieldset>}<Field label="Printable artwork URL" type="url" placeholder="https://…" value={merchPrintfulDraft.designUrl} onChange={(designUrl) => setMerchPrintfulDraft((current) => ({ ...current, designUrl }))} /><div /><div className="sm:col-span-2"><AdminImageUploader label="Or upload printable artwork" images={merchPrintfulDraft.designUrl ? [merchPrintfulDraft.designUrl] : []} onChange={(images) => setMerchPrintfulDraft((current) => ({ ...current, designUrl: images[0] || "" }))} /></div><p className="sm:col-span-2 text-xs leading-5 text-charcoal/55">Printful must be able to download the artwork from the public website. Localhost uploads work after the hosted website address is configured.</p></div>}
+              {content.merch[editing.merch].fulfillment === "printful" && content.merch[editing.merch].printfulProductId && <div className="sm:col-span-2 overflow-hidden rounded-xl border border-charcoal/10"><div className="bg-charcoal px-4 py-3 text-xs font-bold uppercase tracking-[0.12em] text-cream">Printful variants · edit price or SKU, then save both systems</div>{content.merch[editing.merch].variants.map((variant, variantIndex) => <div key={variant.id} className="grid gap-4 border-t border-charcoal/10 bg-white px-4 py-4 sm:grid-cols-[1fr_10rem_12rem]"><div><p className="font-semibold">{variant.name}</p><p className={`mt-1 text-xs ${variant.available ? "text-emerald-700" : "text-red-700"}`}>{variant.available ? "Available" : "Unavailable"} · Catalog variant {variant.printfulCatalogVariantId || "—"}</p></div><Field label="Retail price" value={variant.price} onChange={(price) => updateMerchVariant(editing.merch as number, variantIndex, { price })} /><Field label="SKU" value={variant.sku} onChange={(sku) => updateMerchVariant(editing.merch as number, variantIndex, { sku })} /></div>)}</div>}
               <div className="sm:col-span-2"><TextareaField label="Short description" rows={4} maxLength={220} value={content.merch[editing.merch].shortDescription} onChange={(value) => updateItem("merch", editing.merch as number, { shortDescription: value })} /></div>
-              <div className="sm:col-span-2 rounded-xl border-2 border-gold/35 bg-[#fff8e9] p-5"><Field label="Shop or buy link" type="url" placeholder="https://…" value={content.merch[editing.merch].buyUrl} onChange={(value) => updateItem("merch", editing.merch as number, { buyUrl: value })} /><p className="mt-2 text-xs normal-case leading-5 tracking-normal text-charcoal/50">Paste the full product checkout or shop link. It must begin with http:// or https://.</p></div>
               <div className="sm:col-span-2"><AdminImageUploader label="Product image" images={content.merch[editing.merch].image ? [content.merch[editing.merch].image] : []} onChange={(images) => updateItem("merch", editing.merch as number, { image: images[0] ?? "" })} /></div>
               <div className="sm:col-span-2"><PublishedToggle checked={content.merch[editing.merch].published} onChange={(published) => updateItem("merch", editing.merch as number, { published })} /></div>
-            </EditorCard></div>}
+            </EditorCard></div></div>}
           </section>}
 
           {tab === "news" && <section><CollectionHeader title="News" copy="Publish announcements, journal entries, book updates, and writing reflections." onAdd={() => addItem("news")} /><AdminTable headers={["Article", "Date", "Status", "Actions"]} empty="No news posts have been added yet." rows={content.news.map((item, index) => ({ id: item.id, cells: [<TableIdentity key="news" image={item.image} title={item.title} detail={`/${item.slug}`} />, item.date || "—", <StatusBadge key="status" published={item.published} />, <TableActions key="actions" onEdit={() => setEditing((current) => ({ ...current, news: index }))} onDelete={() => removeItem("news", index)} />] }))} />
@@ -716,7 +933,7 @@ export function AdminDashboard() {
 
           {tab === "orders" && <section>
             <InboxHeader title="Merch orders" copy="Orders created by Stripe Checkout appear here. Payment status is updated by the Stripe webhook." count={orders.length} />
-            <AdminTable headers={["Order", "Customer", "Total", "Received", "Status"]} empty="No merchandise orders have been created yet." rows={orders.map((order) => ({ id: order.id, cells: [<div key="order"><p className="font-semibold">{order.items.map((item) => `${item.quantity}× ${item.name}`).join(", ") || "Merch order"}</p><p className="mt-1 text-xs text-charcoal/40">{order.id.slice(0, 8).toUpperCase()}</p></div>, <div key="customer"><p className="font-semibold">{order.customerName || "Awaiting payment"}</p><p className="mt-1 text-xs text-charcoal/45">{order.customerEmail || "—"}</p></div>, new Intl.NumberFormat("en-US", { style: "currency", currency: (order.currency || "usd").toUpperCase() }).format((order.amountTotal || 0) / 100), new Date(order.createdAt).toLocaleString(), <label key="status" className={labelClass}><span className="sr-only">Order status</span><select className={`${inputClass} mt-0 min-w-36`} value={order.status} onChange={(event) => void updateOrderStatus(order.id, event.target.value)}>{["pending", "paid", "processing", "fulfilled", "cancelled", "refunded", "payment-failed"].map((status) => <option key={status} value={status}>{status.replace("-", " ")}</option>)}</select></label>] }))} />
+            <AdminTable headers={["Order", "Customer", "Total", "Fulfillment", "Received", "Status"]} empty="No merchandise orders have been created yet." rows={orders.map((order) => ({ id: order.id, cells: [<div key="order"><p className="font-semibold">{order.items.map((item) => `${item.quantity}× ${item.name}${item.variantName ? ` (${item.variantName})` : ""}`).join(", ") || "Merch order"}</p><p className="mt-1 text-xs text-charcoal/40">{order.id.slice(0, 8).toUpperCase()}</p></div>, <div key="customer"><p className="font-semibold">{order.customerName || "Awaiting payment"}</p><p className="mt-1 text-xs text-charcoal/45">{order.customerEmail || "—"}</p></div>, new Intl.NumberFormat("en-US", { style: "currency", currency: (order.currency || "usd").toUpperCase() }).format((order.amountTotal || 0) / 100), <div key="fulfillment"><p className="text-xs font-semibold text-charcoal">{order.printfulStatus ? `Printful: ${order.printfulStatus}` : order.items.some((item) => item.fulfillment === "printful") ? "Awaiting Printful" : "Manual"}</p>{order.printfulError && <p className="mt-1 max-w-48 text-xs text-red-700">{order.printfulError}</p>}{order.trackingUrl && <a href={order.trackingUrl} target="_blank" rel="noreferrer" className="mt-1 inline-block text-xs font-semibold text-burgundy underline">Track shipment</a>}</div>, new Date(order.createdAt).toLocaleString(), <label key="status" className={labelClass}><span className="sr-only">Order status</span><select className={`${inputClass} mt-0 min-w-36`} value={order.status} onChange={(event) => void updateOrderStatus(order.id, event.target.value)}>{["pending", "paid", "processing", "fulfilled", "shipped", "cancelled", "refunded", "payment-failed"].map((status) => <option key={status} value={status}>{status.replace("-", " ")}</option>)}</select></label>] }))} />
           </section>}
 
           {tab === "inquiries" && <section><InboxHeader title="Contact inquiries" copy="Messages submitted through the public contact forms appear here." count={submissions.inquiries.length} /><AdminTable headers={["Sender", "Subject", "Received", "Status", "Actions"]} empty="No contact inquiries have arrived yet." rows={submissions.inquiries.map((item) => ({ id: item.id, cells: [<div key="sender"><p className="font-semibold">{item.name}</p><p className="text-xs text-charcoal/45">{item.email}</p></div>, item.subject, new Date(item.createdAt).toLocaleDateString(), <InboxStatus key="status" status={item.status} />, <TableActions key="actions" editLabel="Open" onEdit={() => setSelectedInquiryId(item.id)} onDelete={() => void removeSubmission("inquiries", item.id)} />] }))} />

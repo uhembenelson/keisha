@@ -41,13 +41,13 @@ export default async function MerchPage() {
           <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {products.map((product) => <article key={product.id} className="flex flex-col overflow-hidden border border-charcoal/10 bg-cream">
               <div className="relative aspect-square bg-dusty-rose/15">
-                {product.image ? <Image src={product.image} alt={product.name} fill unoptimized={product.image.startsWith("/api/uploads/")} sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" className="object-cover" /> : <div className="grid h-full place-items-center text-burgundy/35"><ShoppingBag className="size-14" /></div>}
+                {product.image ? <Image src={product.image} alt={product.name} fill unoptimized={product.image.startsWith("/api/uploads/") || /^https?:\/\//.test(product.image)} sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" className="object-cover" /> : <div className="grid h-full place-items-center text-burgundy/35"><ShoppingBag className="size-14" /></div>}
               </div>
               <div className="flex flex-1 flex-col p-6">
                 <div className="flex items-start justify-between gap-4"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-burgundy">{product.category}</p>{product.price && <p className="shrink-0 text-sm font-bold text-charcoal">{product.price}</p>}</div>
                 <h2 className="mt-4 font-display text-3xl leading-tight">{product.name}</h2>
                 <p className="mt-4 text-sm leading-6 text-charcoal/70">{product.shortDescription}</p>
-                <AddToCartButton productId={product.id} label={product.buttonText || "Add to cart"} className="mt-7 inline-flex w-fit items-center gap-2 bg-burgundy px-5 py-3 text-sm font-semibold text-cream transition-colors hover:bg-charcoal" />
+                <AddToCartButton productId={product.id} variants={product.variants} requireVariant={product.fulfillment === "printful"} label={product.buttonText || "Add to cart"} className="inline-flex w-fit items-center gap-2 bg-burgundy px-5 py-3 text-sm font-semibold text-cream transition-colors hover:bg-charcoal" />
               </div>
             </article>)}
           </div>

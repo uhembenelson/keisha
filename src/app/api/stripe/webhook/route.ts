@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 
 import { getMongoDatabase } from "@/lib/mongodb";
 import { getPaymentSettings } from "@/lib/payment-settings";
+import { createPrintfulOrder } from "@/lib/printful";
 
 export const runtime = "nodejs";
 
@@ -30,7 +31,46 @@ export async function POST(request: Request) {
     const orderId = typeof session.client_reference_id === "string" ? session.client_reference_id : undefined;
     if (database && orderId) {
       const paid = event.type !== "checkout.session.async_payment_failed" && session.payment_status === "paid";
-      await database.collection("merch_orders").updateOne({ id: orderId }, { $set: { status: paid ? "paid" : event.type === "checkout.session.async_payment_failed" ? "payment-failed" : "processing", customerEmail: (session.customer_details as { email?: string } | undefined)?.email || "", customerName: (session.customer_details as { name?: string } | undefined)?.name || "", shippingDetails: session.shipping_details || null, amountTotal: session.amount_total || 0, currency: session.currency || "usd", updatedAt: new Date().toISOString() } });
+      const customer = session.customer_details as { email?: string; name?: string; phone?: string; address?: Record<string, unknown> } | undefined;
+      const collected = session.collected_information as { shipping_details?: { name?: string; address?: Record<string, unknown> } } | undefined;
+      const shipping = collected?.shipping_details || session.shipping_details as { name?: string; address?: Record<string, unknown> } | undefined;
+      await database.collection("merch_orders").updateOne({ id: orderId }, { $set: { status: paid ? "paid" : event.type === "checkout.session.async_payment_failed" ? "payment-failed" : "processing", customerEmail: customer?.email || "", customerName: customer?.name || "", shippingDetails: shipping || customer?.address || null, amountTotal: session.amount_total || 0, currency: session.currency || "usd", updatedAt: new Date().toISOString() } });
+      if (paid) {
+        const order = await database.collection("merch_orders").findOne({ id: orderId });
+        const printfulItems = (Array.isArray(order?.items) ? order.items : []).filter((item) => Number(item.printfulSyncVariantId) > 0);
+        if (printfulItems.length > 0 && !order?.printfulOrderId) {
+          const address = shipping?.address || customer?.address || {};
+          const address1 = typeof address.line1 === "string" ? address.line1 : "";
+          const city = typeof address.city === "string" ? address.city : "";
+          const countryCode = typeof address.country === "string" ? address.country : "";
+          const zip = typeof address.postal_code === "string" ? address.postal_code : "";
+          if (!address1 || !city || !countryCode || !zip) {
+            await database.collection("merch_orders").updateOne({ id: orderId }, { $set: { printfulStatus: "address-error", printfulError: "Stripe did not return a complete shipping address.", updatedAt: new Date().toISOString() } });
+          } else {
+            try {
+              const printfulOrder = await createPrintfulOrder({
+                orderId,
+                recipient: {
+                  name: shipping?.name || customer?.name || "Customer",
+                  address1,
+                  address2: typeof address.line2 === "string" ? address.line2 : undefined,
+                  city,
+                  stateCode: typeof address.state === "string" ? address.state : undefined,
+                  countryCode,
+                  zip,
+                  email: customer?.email,
+                  phone: customer?.phone,
+                },
+                items: printfulItems.map((item) => ({ syncVariantId: Number(item.printfulSyncVariantId), quantity: Number(item.quantity) || 1, retailPrice: ((Number(item.unitAmount) || 0) / 100).toFixed(2) })),
+              });
+              await database.collection("merch_orders").updateOne({ id: orderId }, { $set: { printfulOrderId: printfulOrder.id || null, printfulStatus: printfulOrder.status || (printfulOrder.autoConfirmed ? "submitted" : "draft"), printfulDashboardUrl: printfulOrder.dashboard_url || "", printfulError: "", updatedAt: new Date().toISOString() } });
+            } catch (error) {
+              await database.collection("merch_orders").updateOne({ id: orderId }, { $set: { printfulStatus: "failed", printfulError: error instanceof Error ? error.message : "Printful fulfillment failed.", updatedAt: new Date().toISOString() } });
+              return Response.json({ error: "Printful fulfillment failed." }, { status: 500 });
+            }
+          }
+        }
+      }
     }
   }
   return Response.json({ received: true });

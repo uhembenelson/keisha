@@ -246,6 +246,19 @@ export type CmsMerchProduct = {
   buttonText: string;
   image: string;
   published: boolean;
+  fulfillment: "manual" | "printful";
+  printfulProductId: number | null;
+  variants: CmsMerchVariant[];
+};
+
+export type CmsMerchVariant = {
+  id: string;
+  printfulCatalogVariantId: number | null;
+  name: string;
+  price: string;
+  sku: string;
+  available: boolean;
+  printfulSyncVariantId: number | null;
 };
 
 export type CmsContent = {

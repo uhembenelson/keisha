@@ -310,6 +310,17 @@ function normalizeCmsContent(content: CmsContent): CmsContent {
       buttonText: product.buttonText || "Shop Now",
       image: product.image || "",
       published: product.published === true,
+      fulfillment: product.fulfillment === "printful" ? "printful" as const : "manual" as const,
+      printfulProductId: Number.isFinite(product.printfulProductId) ? product.printfulProductId : null,
+      variants: Array.isArray(product.variants) ? product.variants.map((variant) => ({
+        id: variant.id || `variant-${variant.printfulSyncVariantId || variant.name}`,
+        printfulCatalogVariantId: Number.isFinite(variant.printfulCatalogVariantId) ? variant.printfulCatalogVariantId : null,
+        name: variant.name || "Default",
+        price: variant.price || product.price || "",
+        sku: variant.sku || "",
+        available: variant.available !== false,
+        printfulSyncVariantId: Number.isFinite(variant.printfulSyncVariantId) ? variant.printfulSyncVariantId : null,
+      })) : [],
     })),
   };
 }
