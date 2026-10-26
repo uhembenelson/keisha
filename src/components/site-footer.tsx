@@ -11,6 +11,7 @@ const footerLinks = [
   { label: "News", href: "/news" },
   { label: "Events", href: "/events" },
   { label: "Media + Press", href: "/media-press" },
+  { label: "Newsletter", href: "/newsletter" },
   { label: "Contact", href: "/contact" },
 ];
 

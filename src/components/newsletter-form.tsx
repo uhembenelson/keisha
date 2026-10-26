@@ -9,11 +9,15 @@ export function NewsletterForm({
   compact = false,
   source,
   submitLabel = "Join the list",
+  successTitle,
+  successCopy,
 }: {
   variant?: "dark" | "light";
   compact?: boolean;
   source?: string;
   submitLabel?: string;
+  successTitle?: string;
+  successCopy?: string;
 } = {}) {
   const [subscribed, setSubscribed] = useState(false);
   const [pending, setPending] = useState(false);
@@ -31,7 +35,7 @@ export function NewsletterForm({
       const response = await fetch("/api/newsletter", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: formData.get("email"), website: formData.get("website"), source: source || (pathname === "/news" ? "News page" : "Homepage") }),
+        body: JSON.stringify({ email: formData.get("email"), website: formData.get("website"), source: source || (pathname === "/" ? "Homepage" : pathname === "/news" ? "News page" : "Website newsletter form") }),
       });
       const responseText = await response.text();
       let result: { error?: string };
@@ -51,7 +55,15 @@ export function NewsletterForm({
   }
 
   if (subscribed) {
-    return <p className={`flex items-center gap-2 text-sm font-semibold ${variant === "light" ? "text-charcoal" : "text-cream"}`}><Check className="size-4 text-gold" /> You’re on the list. Welcome to Keisha’s reading circle.</p>;
+    if (successTitle || successCopy) {
+      return (
+        <div role="status" aria-live="polite" className={`border p-5 ${variant === "light" ? "border-burgundy/15 bg-white" : "border-cream/20 bg-cream/5"}`}>
+          <p className={`flex items-center gap-2 font-display text-2xl ${variant === "light" ? "text-charcoal" : "text-cream"}`}><Check className="size-5 shrink-0 text-gold" /> {successTitle || "You’re on the list."}</p>
+          {successCopy && <p className={`mt-2 text-sm leading-6 ${variant === "light" ? "text-charcoal/65" : "text-cream/70"}`}>{successCopy}</p>}
+        </div>
+      );
+    }
+    return <p role="status" aria-live="polite" className={`flex items-center gap-2 text-sm font-semibold ${variant === "light" ? "text-charcoal" : "text-cream"}`}><Check className="size-4 text-gold" /> You’re on the list. Welcome to Keisha’s reading circle.</p>;
   }
 
   return (

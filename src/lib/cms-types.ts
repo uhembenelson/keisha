@@ -153,6 +153,8 @@ export type CmsBook = {
   category: string;
   price: string;
   availability: "paid" | "free" | "coming-soon";
+  stripeEnabled: boolean;
+  stripeButtonText: string;
   purchaseUrl: string;
   retailers: CmsBookRetailer[];
   downloadUrl: string;

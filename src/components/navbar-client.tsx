@@ -19,7 +19,7 @@ const navItems = [
   { label: "Events", href: "/events" },
 ];
 
-const mobileNavItems = [...navItems, { label: "Media + Press", href: "/media-press" }];
+const mobileNavItems = [...navItems, { label: "Media + Press", href: "/media-press" }, { label: "Newsletter", href: "/newsletter" }];
 
 export function NavbarClient({ socialLinks }: { socialLinks: CmsSocialLink[] }) {
   const pathname = usePathname();

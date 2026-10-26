@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { ArrowUpRight, Mail, X } from "lucide-react";
 
 import { NewsletterForm } from "@/components/newsletter-form";
@@ -23,7 +24,11 @@ function NewsletterCard({ title, copy, ctaLabel, externalUrl }: HeroNewsletterCa
         <h2 className="font-display text-[2rem] font-semibold leading-[0.95] tracking-[-0.025em] text-charcoal">{title}</h2>
         <p className="mt-3 text-sm leading-6 text-charcoal/70">{copy}</p>
         <div className="mt-4 md:mt-auto md:pt-4">
-          {externalUrl ? <a href={externalUrl} target="_blank" rel="noreferrer" className="flex w-full items-center justify-center gap-2 rounded-xl bg-burgundy px-4 py-3 text-xs font-semibold text-cream transition-colors hover:bg-charcoal">{ctaLabel} <ArrowUpRight className="size-4" /></a> : <NewsletterForm variant="light" compact source="Homepage hero newsletter" submitLabel={ctaLabel} />}
+          <NewsletterForm variant="light" compact source="Homepage hero newsletter" submitLabel={ctaLabel} />
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+            <Link href="/newsletter" className="inline-flex items-center gap-1.5 text-[0.65rem] font-semibold text-burgundy underline decoration-burgundy/30 underline-offset-2">What’s inside the letter? <ArrowUpRight className="size-3" /></Link>
+            {externalUrl && <a href={externalUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-[0.65rem] font-semibold text-burgundy underline decoration-burgundy/30 underline-offset-2">Use external signup page <ArrowUpRight className="size-3" /></a>}
+          </div>
         </div>
       </div>
     </article>

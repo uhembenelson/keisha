@@ -228,6 +228,10 @@ function normalizeCmsContent(content: CmsContent): CmsContent {
       homepageStatTwoDescription:
         settings.homepageStatTwoDescription || "One unforgettable world of love and becoming.",
       homepageSections: normalizeHomepageSections(settings.homepageSections),
+      newsletterTitle: settings.newsletterTitle || "Fresh stories, book news, and inspiration for your inbox.",
+      newsletterCopy:
+        settings.newsletterCopy ||
+        "Join Keisha’s reading circle for occasional updates about new releases, appearances, and the creative journey.",
       newsletterExternalUrl: settings.newsletterExternalUrl || "",
       newsletterExternalLabel: settings.newsletterExternalLabel || "Join the newsletter",
       socialLinks: (Array.isArray(settings.socialLinks) ? settings.socialLinks : defaultSocialLinks)
@@ -283,6 +287,8 @@ function normalizeCmsContent(content: CmsContent): CmsContent {
     books: content.books.map((book) => ({
       ...book,
       availability: book.availability || (book.price ? "paid" : "coming-soon"),
+      stripeEnabled: book.stripeEnabled === true,
+      stripeButtonText: book.stripeButtonText || "Buy securely",
       purchaseUrl: book.purchaseUrl || "",
       retailers: book.retailers?.length ? book.retailers : book.purchaseUrl ? [{ id: "primary-store", name: "Buy from retailer", url: book.purchaseUrl }] : [],
       downloadUrl: book.downloadUrl || "",

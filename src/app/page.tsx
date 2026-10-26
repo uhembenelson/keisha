@@ -286,6 +286,7 @@ export default async function Home() {
           <div>
             <p className="mb-5 max-w-xl text-sm leading-7 text-cream/75">{cms.settings.newsletterCopy}</p>
             <NewsletterSignup externalUrl={cms.settings.newsletterExternalUrl} externalLabel={cms.settings.newsletterExternalLabel} />
+            <Link href="/newsletter" className="mt-5 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-gold underline decoration-gold/40 underline-offset-4 transition-colors hover:text-cream">What’s inside the letter? <ArrowUpRight className="size-3.5" /></Link>
           </div>
         </div>
       </section>
