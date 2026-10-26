@@ -10,6 +10,7 @@ type StoredPrintfulSettings = {
   _id: "printful";
   tokenEncrypted: string;
   storeId: string;
+  fulfillmentEnabled: boolean;
   autoConfirm: boolean;
   webhookSecret: string;
   updatedAt: string;
@@ -18,6 +19,7 @@ type StoredPrintfulSettings = {
 export type PrintfulSettings = {
   token: string;
   storeId: string;
+  fulfillmentEnabled: boolean;
   autoConfirm: boolean;
   webhookSecret: string;
 };
@@ -68,12 +70,13 @@ export async function getPrintfulSettings(): Promise<PrintfulSettings | null> {
   return {
     token: decrypt(stored.tokenEncrypted),
     storeId: stored.storeId || "",
+    fulfillmentEnabled: stored.fulfillmentEnabled === true,
     autoConfirm: stored.autoConfirm === true,
     webhookSecret: stored.webhookSecret || "",
   };
 }
 
-export async function savePrintfulSettings(input: { token?: string; storeId: string; autoConfirm: boolean }) {
+export async function savePrintfulSettings(input: { token?: string; storeId: string; fulfillmentEnabled: boolean; autoConfirm: boolean }) {
   const database = await getMongoDatabase();
   if (!database) throw new Error("MongoDB must be connected before Printful can be configured.");
   const collection = database.collection<StoredPrintfulSettings>("integration_settings");
@@ -83,7 +86,7 @@ export async function savePrintfulSettings(input: { token?: string; storeId: str
   await collection.updateOne(
     { _id: "printful" },
     {
-      $set: { tokenEncrypted, storeId: input.storeId, autoConfirm: input.autoConfirm, webhookSecret, updatedAt: new Date().toISOString() },
+      $set: { tokenEncrypted, storeId: input.storeId, fulfillmentEnabled: input.fulfillmentEnabled, autoConfirm: input.autoConfirm, webhookSecret, updatedAt: new Date().toISOString() },
       $setOnInsert: { _id: "printful" },
     },
     { upsert: true },
@@ -117,12 +120,13 @@ export async function listPrintfulProducts() {
     const results = await Promise.all(batch.map(async (product) => {
       const detail = await printfulRequest<{
         sync_product?: { id?: number; name?: string; thumbnail?: string; thumbnail_url?: string };
-        sync_variants?: Array<{ id?: number; variant_id?: number; name?: string; retail_price?: string; sku?: string | null; availability_status?: string; is_ignored?: boolean }>;
+        sync_variants?: Array<{ id?: number; variant_id?: number; name?: string; retail_price?: string; sku?: string | null; availability_status?: string; is_ignored?: boolean; files?: Array<{ preview_url?: string; thumbnail_url?: string; url?: string }> }>;
       }>(`/store/products/${product.id}`);
+      const variantPreview = detail.sync_variants?.flatMap((variant) => variant.files || []).map((file) => file.preview_url || file.thumbnail_url || file.url || "").find(Boolean) || "";
       return {
         id: Number(detail.sync_product?.id || product.id),
         name: detail.sync_product?.name || product.name,
-        thumbnail: detail.sync_product?.thumbnail_url || detail.sync_product?.thumbnail || product.thumbnail_url || "",
+        thumbnail: detail.sync_product?.thumbnail_url || detail.sync_product?.thumbnail || product.thumbnail_url || variantPreview,
         variants: (detail.sync_variants || []).filter((variant) => variant.id).map((variant) => ({
           id: Number(variant.id),
           catalogVariantId: Number(variant.variant_id || 0),

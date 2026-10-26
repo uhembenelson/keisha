@@ -30,6 +30,7 @@ export async function POST(request: Request) {
       {
         token,
         storeId: "",
+        fulfillmentEnabled: current?.fulfillmentEnabled === true,
         autoConfirm: current?.autoConfirm === true,
         webhookSecret: "",
       },

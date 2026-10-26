@@ -47,6 +47,7 @@ export async function PUT(request: Request) {
       createdProduct.category = body.category || createdProduct.category;
       createdProduct.shortDescription = body.shortDescription?.trim() || createdProduct.shortDescription;
       createdProduct.buttonText = body.buttonText?.trim() || createdProduct.buttonText;
+      createdProduct.image = body.image?.trim() || body.designUrl.trim() || createdProduct.image;
       createdProduct.published = body.published !== false;
     }
     await saveCmsContent(content);

@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 
 import { getMongoDatabase } from "@/lib/mongodb";
 import { getPaymentSettings } from "@/lib/payment-settings";
-import { createPrintfulOrder } from "@/lib/printful";
+import { createPrintfulOrder, getPrintfulSettings } from "@/lib/printful";
 
 export const runtime = "nodejs";
 
@@ -39,6 +39,11 @@ export async function POST(request: Request) {
         const order = await database.collection("merch_orders").findOne({ id: orderId });
         const printfulItems = (Array.isArray(order?.items) ? order.items : []).filter((item) => Number(item.printfulSyncVariantId) > 0);
         if (printfulItems.length > 0 && !order?.printfulOrderId) {
+          const printfulSettings = await getPrintfulSettings();
+          if (printfulSettings?.fulfillmentEnabled !== true) {
+            await database.collection("merch_orders").updateOne({ id: orderId }, { $set: { printfulStatus: "test-skipped", printfulError: "Printful order forwarding is disabled for payment testing. No Printful order was created.", updatedAt: new Date().toISOString() } });
+            return Response.json({ received: true, printfulSkipped: true });
+          }
           const address = shipping?.address || customer?.address || {};
           const address1 = typeof address.line1 === "string" ? address.line1 : "";
           const city = typeof address.city === "string" ? address.city : "";
