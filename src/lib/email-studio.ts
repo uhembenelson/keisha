@@ -159,6 +159,22 @@ export function renderEmailHtml(template: EmailTemplate, unsubscribeUrl = "") {
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(template.subject)}</title></head><body style="margin:0;padding:0;background:${escapeHtml(theme.emailBackground)};"><div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escapeHtml(template.preheader)}</div><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:${escapeHtml(theme.emailBackground)};"><tr><td align="center" style="padding:32px 12px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:${Math.max(480, Math.min(760, theme.contentWidth))}px;background:${escapeHtml(theme.contentBackground)};color:${escapeHtml(theme.textColor)};">${logo}${template.blocks.map((block) => renderBlock(block, fontFamily)).join("")}<tr><td style="padding:28px;text-align:center;color:${escapeHtml(theme.textColor)};font-family:${fontFamily};font-size:12px;line-height:1.6;border-top:1px solid rgba(0,0,0,.1);">${escapeHtml(theme.footerText).replace(/\n/g, "<br>")}${unsubscribe}</td></tr></table></td></tr></table></body></html>`;
 }
 
+export function renderEmailText(template: EmailTemplate, unsubscribeUrl = "") {
+  const lines = [template.preheader, ""];
+  for (const block of template.blocks) {
+    if (block.type === "heading" || block.type === "text" || block.type === "icon") lines.push(block.text.trim(), "");
+    if (block.type === "button" && block.label.trim()) lines.push(`${block.label.trim()}: ${/^https?:\/\//i.test(block.url) ? block.url.trim() : ""}`, "");
+    if (block.type === "image" && block.alt.trim()) lines.push(`${block.alt.trim()}${/^https?:\/\//i.test(block.url) ? `: ${block.url.trim()}` : ""}`, "");
+    if (block.type === "social") {
+      for (const link of block.socialLinks.filter((item) => item.label.trim() && /^https?:\/\//i.test(item.url))) lines.push(`${link.label.trim()}: ${link.url.trim()}`);
+      lines.push("");
+    }
+  }
+  lines.push(template.theme.footerText.trim());
+  if (unsubscribeUrl) lines.push(`Unsubscribe: ${unsubscribeUrl}`);
+  return lines.filter((line, index, all) => line || all[index - 1]).join("\n").trim();
+}
+
 export function createUnsubscribeToken(email: string) {
   const normalized = email.trim().toLowerCase();
   const signature = createHmac("sha256", secretKey()).update(normalized).digest("base64url");
@@ -181,6 +197,23 @@ export async function unsubscribeEmail(email: string) {
   return Boolean(subscriber);
 }
 
+export async function sendTransactionalEmail(input: { to: string; subject: string; html: string; text: string; idempotencyKey: string }) {
+  const to = input.to.trim().toLowerCase();
+  if (!emailPattern.test(to)) throw new Error("A valid customer email is required for this message.");
+  const database = await getMongoDatabase();
+  if (!database) throw new Error("MongoDB must be connected before transactional email can be sent.");
+  const stored = await database.collection<StoredEmailSettings>("integration_settings").findOne({ _id: "email-studio" });
+  if (!stored?.apiKeyEncrypted || !publicSettings(stored).ready) throw new Error("Configure Resend and a verified sender address before sending.");
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { authorization: `Bearer ${decrypt(stored.apiKeyEncrypted)}`, "content-type": "application/json", "idempotency-key": input.idempotencyKey },
+    body: JSON.stringify({ from: `${stored.fromName} <${stored.fromEmail}>`, to: [to], subject: input.subject, html: input.html, text: input.text, ...(stored.replyTo ? { reply_to: stored.replyTo } : {}) }),
+  });
+  const result = await response.json().catch(() => null) as { id?: string; message?: string; error?: { message?: string } } | null;
+  if (!response.ok) throw new Error(result?.message || result?.error?.message || `Resend rejected the email (${response.status}).`);
+  return result?.id || "";
+}
+
 export async function sendEmailCampaign(input: { template: EmailTemplate; audience: "newsletter" | "single" | "custom"; recipients: string[]; campaignName: string; siteUrl: string }) {
   const database = await getMongoDatabase();
   if (!database) throw new Error("MongoDB must be connected before an email campaign can be sent.");
@@ -200,13 +233,18 @@ export async function sendEmailCampaign(input: { template: EmailTemplate; audien
     let sentCount = 0;
     for (let index = 0; index < recipients.length; index += 100) {
       const batch = recipients.slice(index, index + 100);
-      const payload = batch.map((email) => ({
-        from: `${stored.fromName} <${stored.fromEmail}>`,
-        to: [email],
-        subject: input.template.subject,
-        html: renderEmailHtml(input.template, `${input.siteUrl.replace(/\/$/, "")}/api/newsletter/unsubscribe?token=${encodeURIComponent(createUnsubscribeToken(email))}`),
-        ...(stored.replyTo ? { reply_to: stored.replyTo } : {}),
-      }));
+      const payload = batch.map((email) => {
+        const unsubscribeUrl = `${input.siteUrl.replace(/\/$/, "")}/api/newsletter/unsubscribe?token=${encodeURIComponent(createUnsubscribeToken(email))}`;
+        return {
+          from: `${stored.fromName} <${stored.fromEmail}>`,
+          to: [email],
+          subject: input.template.subject,
+          html: renderEmailHtml(input.template, unsubscribeUrl),
+          text: renderEmailText(input.template, unsubscribeUrl),
+          headers: { "List-Unsubscribe": `<${unsubscribeUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
+          ...(stored.replyTo ? { reply_to: stored.replyTo } : {}),
+        };
+      });
       const response = await fetch("https://api.resend.com/emails/batch", { method: "POST", headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json", "idempotency-key": `email-studio/${campaign.id}/${index / 100}` }, body: JSON.stringify(payload) });
       const result = await response.json().catch(() => null) as { message?: string; error?: { message?: string }; data?: Array<{ id?: string }> } | null;
       if (!response.ok) throw new Error(result?.message || result?.error?.message || `Resend rejected the campaign (${response.status}).`);

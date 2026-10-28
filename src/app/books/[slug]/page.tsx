@@ -59,7 +59,7 @@ export default async function BookPage({ params }: BookPageProps) {
             <p className="mt-10 text-xs font-semibold uppercase tracking-[0.22em] text-gold">{book.category}</p>
             <h1 className="mt-4 font-display text-6xl leading-none sm:text-7xl">{book.title}</h1>
             <div className="mt-8 space-y-5 text-base leading-8 text-cream/75 sm:text-lg">{book.description.split(/\n\n+/).map((paragraph) => <p key={paragraph}>{paragraph}</p>)}</div>
-            <div className="mt-8 flex flex-wrap items-center gap-5"><BookAction book={book} tone="gold" /><Link href="/contact" className="inline-flex items-center gap-2 border-b border-cream/40 pb-1 text-sm font-semibold text-cream">Ask about a signed copy <ArrowUpRight className="size-4" /></Link></div>
+            <div className="mt-8 flex flex-wrap items-center gap-5"><BookAction book={{ ...book, digitalDownloadUrl: "" }} tone="gold" /><Link href="/contact" className="inline-flex items-center gap-2 border-b border-cream/40 pb-1 text-sm font-semibold text-cream">Ask about a signed copy <ArrowUpRight className="size-4" /></Link></div>
           </div>
         </div>
       </section>

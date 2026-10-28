@@ -30,16 +30,20 @@ export async function POST(request: Request) {
   const formData = await request.formData().catch(() => null);
   if (!formData) return Response.json({ error: "Submit the image as multipart form data." }, { status: 400 });
   const file = formData.get("file");
-  const kind = formData.get("kind") === "book" ? "book" : "image";
+  const requestedKind = formData.get("kind");
+  const kind = requestedKind === "paid-book" ? "paid-book" : requestedKind === "book" ? "book" : "image";
   if (!(file instanceof File)) return Response.json({ error: "Choose an image to upload." }, { status: 400 });
 
-  const extension = (kind === "book" ? allowedBookTypes : allowedImageTypes).get(file.type);
-  if (!extension) return Response.json({ error: kind === "book" ? "Upload a PDF, EPUB, or MOBI book file." : "Upload a JPG, PNG, WebP, or GIF image." }, { status: 415 });
-  const maxFileSize = kind === "book" ? 25 * 1024 * 1024 : 8 * 1024 * 1024;
-  if (file.size > maxFileSize) return Response.json({ error: kind === "book" ? "Book files must be smaller than 25 MB." : "Images must be smaller than 8 MB." }, { status: 413 });
+  const isBook = kind === "book" || kind === "paid-book";
+  const extension = (isBook ? allowedBookTypes : allowedImageTypes).get(file.type);
+  if (!extension) return Response.json({ error: isBook ? "Upload a PDF, EPUB, or MOBI book file." : "Upload a JPG, PNG, WebP, or GIF image." }, { status: 415 });
+  const maxFileSize = isBook ? 25 * 1024 * 1024 : 8 * 1024 * 1024;
+  if (file.size > maxFileSize) return Response.json({ error: isBook ? "Book files must be smaller than 25 MB." : "Images must be smaller than 8 MB." }, { status: 413 });
 
   const bytes = Buffer.from(await file.arrayBuffer());
   const database = await getMongoDatabase();
+
+  if (!database && kind === "paid-book") return Response.json({ error: "Connect MongoDB before uploading a paid digital book. Paid downloads require protected file storage." }, { status: 503 });
 
   if (database) {
     const id = new ObjectId();
@@ -54,7 +58,7 @@ export async function POST(request: Request) {
   }
 
   const id = randomUUID();
-  const publicDirectory = kind === "book" ? "downloads" : "uploads";
+  const publicDirectory = isBook ? "downloads" : "uploads";
   const uploadsDirectory = path.join(process.cwd(), "public", publicDirectory);
   await mkdir(uploadsDirectory, { recursive: true });
   const filename = `${id}.${extension}`;

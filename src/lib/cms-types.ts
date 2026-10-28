@@ -17,6 +17,33 @@ export type CmsSettings = {
   newsletterCopy: string;
   newsletterExternalUrl: string;
   newsletterExternalLabel: string;
+  newsletterPageEyebrow: string;
+  newsletterPageTrustOne: string;
+  newsletterPageTrustTwo: string;
+  newsletterPageTrustThree: string;
+  newsletterPageSignupKicker: string;
+  newsletterPageSignupTitle: string;
+  newsletterPageSignupCopy: string;
+  newsletterPageSubmitLabel: string;
+  newsletterPageSuccessTitle: string;
+  newsletterPageSuccessCopy: string;
+  newsletterPagePrivacyCopy: string;
+  newsletterPageImage: string;
+  newsletterPageImageAlt: string;
+  newsletterPageQuote: string;
+  newsletterPageQuoteBy: string;
+  newsletterPageInsideKicker: string;
+  newsletterPageInsideTitle: string;
+  newsletterPageInsideCopy: string;
+  newsletterPageBenefits: CmsNewsletterBenefit[];
+  newsletterPageFaqKicker: string;
+  newsletterPageFaqTitle: string;
+  newsletterPageFaqCopy: string;
+  newsletterPageContactLabel: string;
+  newsletterPageFaqs: CmsNewsletterFaq[];
+  newsletterPageClosingKicker: string;
+  newsletterPageClosingTitle: string;
+  newsletterPageClosingCta: string;
   socialLinks: CmsSocialLink[];
   contactEmail: string;
   heroImage: string;
@@ -98,6 +125,18 @@ export type CmsSettings = {
   merchComingSoonLabel: string;
 };
 
+export type CmsNewsletterBenefit = {
+  id: string;
+  title: string;
+  copy: string;
+};
+
+export type CmsNewsletterFaq = {
+  id: string;
+  question: string;
+  answer: string;
+};
+
 export type CmsHomepageCreativeRole = {
   id: "writer" | "author" | "speaker" | "publisher";
   title: string;
@@ -153,8 +192,15 @@ export type CmsBook = {
   category: string;
   price: string;
   availability: "paid" | "free" | "coming-soon";
+  physicalEnabled: boolean;
   stripeEnabled: boolean;
   stripeButtonText: string;
+  digitalEnabled: boolean;
+  digitalPrice: string;
+  digitalDownloadUrl: string;
+  presaleEnabled: boolean;
+  presaleReleaseDate: string;
+  presaleEndDate: string;
   purchaseUrl: string;
   retailers: CmsBookRetailer[];
   downloadUrl: string;

@@ -158,12 +158,12 @@ export default async function Home() {
                   <Image src={book.cover} alt={`${book.title} book cover`} fill unoptimized={book.cover.startsWith("/api/uploads/")} sizes="(max-width: 640px) 100vw, 32vw" className="object-contain p-8 drop-shadow-[0_22px_18px_rgba(43,27,31,0.18)] transition-transform duration-500 group-hover:scale-[1.025]" />
                 </Link>
                 <div className="flex flex-col p-7 sm:p-8 lg:p-10">
-                  <div className="flex items-start justify-between gap-5"><span className="font-display text-4xl text-gold">{String(index + 1).padStart(2, "0")}</span><span className="text-sm font-semibold uppercase tracking-[0.14em] text-burgundy">{book.availability === "free" ? "Free" : book.price}</span></div>
+                  <div className="flex items-start justify-between gap-5"><span className="font-display text-4xl text-gold">{String(index + 1).padStart(2, "0")}</span><span className="text-sm font-semibold uppercase tracking-[0.14em] text-burgundy">{book.availability === "free" ? "Free" : book.digitalEnabled && !book.physicalEnabled ? book.digitalPrice : book.digitalEnabled && book.physicalEnabled ? `From ${[book.price, book.digitalPrice].map((price) => Number(price.replace(/[^0-9.]/g, ""))).filter((price) => Number.isFinite(price) && price > 0).sort((a, b) => a - b)[0]?.toLocaleString("en-US", { style: "currency", currency: "USD" }) ?? book.price}` : book.price}</span></div>
                   <div className="mt-auto pt-16 sm:pt-10">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-burgundy">{book.category}</p>
                     <h3 className="mt-3 font-display text-4xl font-medium leading-none tracking-[-0.02em] text-charcoal lg:text-5xl">{book.title}</h3>
                     <p className="mt-5 text-base leading-7 text-charcoal/80">{book.shortDescription}</p>
-                    <div className="mt-8 flex flex-wrap items-center gap-4"><BookAction book={book} /><Link href={`/books/${book.slug}`} className="inline-flex items-center gap-2 border-b-2 border-charcoal/40 pb-1 text-base font-semibold text-charcoal transition-colors hover:border-burgundy hover:text-burgundy">{cms.settings.homepageBooksDetailCtaLabel} <ArrowUpRight className="size-4" /></Link></div>
+                    <div className="mt-8 flex flex-wrap items-center gap-4"><BookAction book={{ ...book, digitalDownloadUrl: "" }} /><Link href={`/books/${book.slug}`} className="inline-flex items-center gap-2 border-b-2 border-charcoal/40 pb-1 text-base font-semibold text-charcoal transition-colors hover:border-burgundy hover:text-burgundy">{cms.settings.homepageBooksDetailCtaLabel} <ArrowUpRight className="size-4" /></Link></div>
                   </div>
                 </div>
               </article>

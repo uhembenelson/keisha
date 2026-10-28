@@ -35,7 +35,7 @@ export default async function BooksPage() {
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-burgundy">{book.category}</p>
                 <h2 className="mt-3 font-display text-4xl leading-none sm:text-5xl">{book.title}</h2>
                 <p className="mt-5 text-base leading-7 text-charcoal/70">{book.shortDescription}</p>
-                <div className="mt-8 flex flex-wrap items-center gap-4"><BookAction book={book} /><Link href={`/books/${book.slug}`} className="inline-flex w-fit items-center gap-2 border-b-2 border-burgundy pb-1 text-sm font-semibold text-burgundy">Read more <ArrowUpRight className="size-4" /></Link></div>
+                <div className="mt-8 flex flex-wrap items-center gap-4"><BookAction book={{ ...book, digitalDownloadUrl: "" }} /><Link href={`/books/${book.slug}`} className="inline-flex w-fit items-center gap-2 border-b-2 border-burgundy pb-1 text-sm font-semibold text-burgundy">Read more <ArrowUpRight className="size-4" /></Link></div>
               </div>
             </article>
           ))}

@@ -32,11 +32,12 @@ export async function POST(request: Request) {
   const database = await getMongoDatabase();
   if (!database) return Response.json({ error: "Order storage is unavailable." }, { status: 503 });
   const origin = (process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin).replace(/\/$/, "");
-  const form = new URLSearchParams({ mode: "payment", success_url: `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${origin}/cart`, client_reference_id: orderId, "metadata[order_id]": orderId, billing_address_collection: "required", "shipping_address_collection[allowed_countries][0]": "US" });
+  const form = new URLSearchParams({ mode: "payment", success_url: `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${origin}/cart`, client_reference_id: orderId, "metadata[order_id]": orderId, "automatic_tax[enabled]": "true", billing_address_collection: "required", "shipping_address_collection[allowed_countries][0]": "US" });
   items.forEach(({ product, variant, quantity, amount }, index) => {
     form.set(`line_items[${index}][quantity]`, String(quantity));
     form.set(`line_items[${index}][price_data][currency]`, "usd");
     form.set(`line_items[${index}][price_data][unit_amount]`, String(amount));
+    form.set(`line_items[${index}][price_data][tax_behavior]`, "exclusive");
     form.set(`line_items[${index}][price_data][product_data][name]`, variant ? `${product.name} — ${variant.name}` : product.name);
     if (product.shortDescription) form.set(`line_items[${index}][price_data][product_data][description]`, product.shortDescription.slice(0, 500));
   });
