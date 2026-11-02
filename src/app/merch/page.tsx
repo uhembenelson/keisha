@@ -47,7 +47,7 @@ export default async function MerchPage() {
                 <div className="flex items-start justify-between gap-4"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-burgundy">{product.category}</p>{product.price && <p className="shrink-0 text-sm font-bold text-charcoal">{product.price}</p>}</div>
                 <h2 className="mt-4 font-display text-3xl leading-tight">{product.name}</h2>
                 <p className="mt-4 text-sm leading-6 text-charcoal/70">{product.shortDescription}</p>
-                <AddToCartButton productId={product.id} variants={product.variants} requireVariant={product.fulfillment === "printful"} label={product.buttonText || "Add to cart"} className="inline-flex w-fit items-center gap-2 bg-burgundy px-5 py-3 text-sm font-semibold text-cream transition-colors hover:bg-charcoal" />
+                <AddToCartButton productId={product.id} variants={product.variants} requireVariant={product.fulfillment === "printful"} label="Add to cart" className="inline-flex w-fit items-center gap-2 bg-burgundy px-5 py-3 text-sm font-semibold text-cream transition-colors hover:bg-charcoal" />
               </div>
             </article>)}
           </div>

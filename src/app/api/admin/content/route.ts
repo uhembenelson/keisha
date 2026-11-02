@@ -60,6 +60,10 @@ export async function PUT(request: Request) {
     if (!book.published || book.availability !== "paid") return false;
     if (!book.physicalEnabled && !book.digitalEnabled) return true;
     if (book.physicalEnabled && !(Number(book.price.replace(/[^0-9.]/g, "")) > 0)) return true;
+    const signedPrices = [book.signedCopyPrice, book.signedPresalePrice].map((price) => String(price || "").trim());
+    if (signedPrices.some((price) => price && !(Number(price.replace(/[^0-9.]/g, "")) > 0))) return true;
+    if (book.signedCopyEnabled && (!book.physicalEnabled || !book.stripeEnabled)) return true;
+    if (signedPrices.some(Boolean) && book.physicalEnabled && !book.stripeEnabled) return true;
     if (book.physicalEnabled && !book.stripeEnabled && !(book.retailers ?? []).some((retailer) => retailer.name.trim() && /^https?:\/\//i.test(retailer.url))) return true;
     if (book.digitalEnabled && (!(Number(book.digitalPrice.replace(/[^0-9.]/g, "")) > 0) || !validDigitalUrl(book.digitalDownloadUrl))) return true;
     if (book.presaleEnabled && (!book.presaleReleaseDate || (book.presaleEndDate && book.presaleEndDate > book.presaleReleaseDate))) return true;

@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { getCmsContent } from "@/lib/cms";
 import { getMongoDatabase } from "@/lib/mongodb";
 import { getPaymentSettings, paymentSettingsReady } from "@/lib/payment-settings";
+import { US_STATES } from "@/lib/us-states";
 
 export const runtime = "nodejs";
 
@@ -11,10 +12,32 @@ function unitAmount(price: string) {
   return Number.isFinite(amount) && amount > 0 ? Math.round(amount * 100) : 0;
 }
 
+type DeliveryAddress = { name: string; email: string; phone: string; street1: string; street2: string; city: string; state: string; zip: string; country: "US" };
+
+function readDeliveryAddress(value: Partial<DeliveryAddress> | undefined): DeliveryAddress | null {
+  const address: DeliveryAddress = {
+    name: String(value?.name || "").trim(),
+    email: String(value?.email || "").trim().toLowerCase(),
+    phone: String(value?.phone || "").trim(),
+    street1: String(value?.street1 || "").trim(),
+    street2: String(value?.street2 || "").trim(),
+    city: String(value?.city || "").trim(),
+    state: String(value?.state || "").trim().toUpperCase(),
+    zip: String(value?.zip || "").trim(),
+    country: "US",
+  };
+  const validState = US_STATES.some(([code]) => code === address.state);
+  if (!address.name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address.email) || !address.phone || !address.street1 || !address.city || !validState || !address.zip || value?.country !== "US") return null;
+  if ([address.name, address.email, address.phone, address.street1, address.street2, address.city, address.zip].some((field) => field.length > 200)) return null;
+  return address;
+}
+
 export async function POST(request: Request) {
-  const body = await request.json().catch(() => null) as { items?: { id?: string; variantId?: string; quantity?: number }[] } | null;
+  const body = await request.json().catch(() => null) as { items?: { id?: string; variantId?: string; quantity?: number }[]; address?: Partial<DeliveryAddress> } | null;
   const requested = Array.isArray(body?.items) ? body.items.slice(0, 20) : [];
   if (!requested.length) return Response.json({ error: "Your cart is empty." }, { status: 400 });
+  const address = readDeliveryAddress(body?.address);
+  if (!address) return Response.json({ error: "Enter a complete US delivery address, email, and phone number before payment." }, { status: 400 });
   const settings = await getPaymentSettings();
   if (!paymentSettingsReady(settings)) return Response.json({ error: "Secure checkout is being configured. Please try again later." }, { status: 503 });
   const cms = await getCmsContent();
@@ -32,7 +55,11 @@ export async function POST(request: Request) {
   const database = await getMongoDatabase();
   if (!database) return Response.json({ error: "Order storage is unavailable." }, { status: 503 });
   const origin = (process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin).replace(/\/$/, "");
-  const form = new URLSearchParams({ mode: "payment", success_url: `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${origin}/cart`, client_reference_id: orderId, "metadata[order_id]": orderId, "automatic_tax[enabled]": "true", billing_address_collection: "required", "shipping_address_collection[allowed_countries][0]": "US" });
+  const customerForm = new URLSearchParams({ email: address.email, name: address.name, phone: address.phone, "address[line1]": address.street1, "address[line2]": address.street2, "address[city]": address.city, "address[state]": address.state, "address[postal_code]": address.zip, "address[country]": "US", "shipping[name]": address.name, "shipping[phone]": address.phone, "shipping[address][line1]": address.street1, "shipping[address][line2]": address.street2, "shipping[address][city]": address.city, "shipping[address][state]": address.state, "shipping[address][postal_code]": address.zip, "shipping[address][country]": "US", "metadata[order_id]": orderId });
+  const customerResponse = await fetch("https://api.stripe.com/v1/customers", { method: "POST", headers: { authorization: `Bearer ${settings!.secretKey}`, "content-type": "application/x-www-form-urlencoded", "idempotency-key": `merch/${orderId}/customer` }, body: customerForm });
+  const customer = await customerResponse.json().catch(() => null) as { id?: string; error?: { message?: string } } | null;
+  if (!customerResponse.ok || !customer?.id) return Response.json({ error: customer?.error?.message || "Your delivery details could not be prepared for Stripe." }, { status: 502 });
+  const form = new URLSearchParams({ mode: "payment", success_url: `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${origin}/cart`, client_reference_id: orderId, customer: customer.id, "metadata[order_id]": orderId, "automatic_tax[enabled]": "true", billing_address_collection: "auto" });
   items.forEach(({ product, variant, quantity, amount }, index) => {
     form.set(`line_items[${index}][quantity]`, String(quantity));
     form.set(`line_items[${index}][price_data][currency]`, "usd");
@@ -44,6 +71,6 @@ export async function POST(request: Request) {
   const stripeResponse = await fetch("https://api.stripe.com/v1/checkout/sessions", { method: "POST", headers: { authorization: `Bearer ${settings!.secretKey}`, "content-type": "application/x-www-form-urlencoded" }, body: form });
   const stripe = await stripeResponse.json() as { id?: string; url?: string; error?: { message?: string } };
   if (!stripeResponse.ok || !stripe.id || !stripe.url) return Response.json({ error: stripe.error?.message || "Stripe checkout could not be created." }, { status: 502 });
-  await database.collection("merch_orders").insertOne({ id: orderId, orderType: "merch", stripeSessionId: stripe.id, status: "pending", items: items.map(({ product, variant, quantity, amount }) => ({ productId: product.id, name: product.name, variantId: variant?.id || "", variantName: variant?.name || "", printfulSyncVariantId: variant?.printfulSyncVariantId || null, fulfillment: product.fulfillment, quantity, unitAmount: amount })), amountTotal: items.reduce((sum, item) => sum + item.amount * item.quantity, 0), currency: "usd", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+  await database.collection("merch_orders").insertOne({ id: orderId, orderType: "merch", stripeCustomerId: customer.id, stripeSessionId: stripe.id, status: "pending", customerEmail: address.email, customerName: address.name, shippingAddress: address, shippingAmount: 0, items: items.map(({ product, variant, quantity, amount }) => ({ productId: product.id, name: product.name, variantId: variant?.id || "", variantName: variant?.name || "", printfulSyncVariantId: variant?.printfulSyncVariantId || null, fulfillment: product.fulfillment, quantity, unitAmount: amount })), amountTotal: items.reduce((sum, item) => sum + item.amount * item.quantity, 0), currency: "usd", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
   return Response.json({ url: stripe.url });
 }

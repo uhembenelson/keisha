@@ -13,15 +13,17 @@ function unitAmount(price: string) {
 }
 
 export async function POST(request: Request) {
-  const body = await request.json().catch(() => null) as { bookId?: string; format?: "physical" | "digital"; quantity?: number; quoteId?: string; rateId?: string } | null;
+  const body = await request.json().catch(() => null) as { bookId?: string; format?: "physical" | "digital"; quantity?: number; quoteId?: string; rateId?: string; signedCopy?: boolean } | null;
   const cms = await getCmsContent();
   const format = body?.format === "digital" ? "digital" : "physical";
   const book = cms.books.find((entry) => entry.id === body?.bookId && entry.published && entry.availability === "paid");
-  const amount = book ? unitAmount(format === "digital" ? book.digitalPrice : book.price) : 0;
-  if (!book || !amount || (format === "digital" ? !book.digitalEnabled || !book.digitalDownloadUrl.trim() : !book.physicalEnabled || !book.stripeEnabled)) {
+  const signedCopy = body?.signedCopy === true;
+  const presale = book?.presaleEnabled === true;
+  const selectedPrice = book ? format === "digital" ? book.digitalPrice : signedCopy ? presale ? book.signedPresalePrice || book.signedCopyPrice || book.price : book.signedCopyPrice || book.price : book.price : "";
+  const amount = unitAmount(selectedPrice || "");
+  if (!book || !amount || (signedCopy && !book.signedCopyEnabled) || (format === "digital" ? signedCopy || !book.digitalEnabled || !book.digitalDownloadUrl.trim() : !book.physicalEnabled || !book.stripeEnabled)) {
     return Response.json({ error: "This book format is not available for direct checkout." }, { status: 400 });
   }
-  const presale = book.presaleEnabled === true;
   const today = new Date().toISOString().slice(0, 10);
   if (presale && (!book.presaleReleaseDate || (book.presaleEndDate && book.presaleEndDate < today))) {
     return Response.json({ error: "Preorders for this book are closed." }, { status: 409 });
@@ -57,7 +59,8 @@ export async function POST(request: Request) {
     "line_items[0][price_data][currency]": "usd",
     "line_items[0][price_data][unit_amount]": String(amount),
     "line_items[0][price_data][tax_behavior]": "exclusive",
-    "line_items[0][price_data][product_data][name]": `${presale ? "Pre-order: " : ""}${book.title}`,
+    "line_items[0][price_data][product_data][name]": `${presale ? "Pre-order: " : ""}${signedCopy ? "Signed copy: " : ""}${book.title}`,
+    "metadata[signed_copy]": signedCopy ? "true" : "false",
   });
   if (book.shortDescription) form.set("line_items[0][price_data][product_data][description]", book.shortDescription.slice(0, 500));
   if (format === "physical") {
@@ -76,7 +79,7 @@ export async function POST(request: Request) {
 
   const order = format === "digital"
     ? { id: orderId, orderType: "book", format, presale, presaleReleaseDate: presale ? book.presaleReleaseDate : "", stripeSessionId: stripe.id, status: "pending", customerEmail: "", customerName: "", digitalDownloadUrl: book.digitalDownloadUrl.trim(), items: [{ productId: book.id, name: book.title, variantId: "", variantName: "", printfulSyncVariantId: null, fulfillment: "digital", quantity: 1, unitAmount: amount }], amountTotal: amount, currency: "usd", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
-    : { id: orderId, orderType: "book", format, presale, presaleReleaseDate: presale ? book.presaleReleaseDate : "", stripeSessionId: stripe.id, status: "pending", customerEmail: quote!.address!.email, customerName: quote!.address!.name, shippingAddress: quote!.address, shippoShipmentId: quote!.shipmentId, shippoRateId: selectedRate!.id, shippingRate: selectedRate, shippingAmount: selectedRate!.amount, shippoStatus: presale ? "presale-awaiting-release" : "awaiting-payment", items: [{ productId: book.id, name: book.title, variantId: "", variantName: "", printfulSyncVariantId: null, fulfillment: "shippo", quantity, unitAmount: amount }], amountTotal: amount * quantity + selectedRate!.amount, currency: "usd", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+    : { id: orderId, orderType: "book", format, presale, signedCopy, presaleReleaseDate: presale ? book.presaleReleaseDate : "", stripeSessionId: stripe.id, status: "pending", customerEmail: quote!.address!.email, customerName: quote!.address!.name, shippingAddress: quote!.address, shippoShipmentId: quote!.shipmentId, shippoRateId: selectedRate!.id, shippingRate: selectedRate, shippingAmount: selectedRate!.amount, shippoStatus: presale ? "presale-awaiting-release" : "awaiting-payment", items: [{ productId: book.id, name: book.title, variantId: "", variantName: signedCopy ? "Signed copy" : "", printfulSyncVariantId: null, fulfillment: "shippo", quantity, unitAmount: amount }], amountTotal: amount * quantity + selectedRate!.amount, currency: "usd", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
   await database.collection("merch_orders").insertOne(order);
   if (format === "physical") await database.collection("shipping_quotes").updateOne({ id: body?.quoteId }, { $set: { usedAt: new Date().toISOString(), orderId } });
   return Response.json({ url: stripe.url });

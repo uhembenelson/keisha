@@ -323,6 +323,9 @@ function normalizeCmsContent(content: CmsContent): CmsContent {
     books: content.books.map((book) => ({
       ...book,
       availability: book.availability || (book.price ? "paid" : "coming-soon"),
+      signedCopyEnabled: book.signedCopyEnabled === true,
+      signedCopyPrice: book.signedCopyPrice || "",
+      signedPresalePrice: book.signedPresalePrice || "",
       physicalEnabled: book.physicalEnabled ?? book.availability !== "free",
       stripeEnabled: book.stripeEnabled === true,
       stripeButtonText: book.stripeButtonText || "Buy securely with Stripe",
@@ -356,7 +359,7 @@ function normalizeCmsContent(content: CmsContent): CmsContent {
       shortDescription: product.shortDescription || "",
       price: product.price || "",
       buyUrl: product.buyUrl || "",
-      buttonText: product.buttonText || "Shop Now",
+      buttonText: "Add to cart",
       image: product.image || "",
       published: product.published === true,
       fulfillment: product.fulfillment === "printful" ? "printful" as const : "manual" as const,

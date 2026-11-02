@@ -72,7 +72,7 @@ export async function POST(request: Request) {
       const checkoutShippingAddress = existingOrder.orderType === "book" && existingOrder.format === "physical"
         ? confirmedShippingAddress(shipping, originalShippingAddress, customer?.email || "")
         : null;
-      await database.collection("merch_orders").updateOne({ id: orderId }, { $set: { status: paid ? "paid" : event.type === "checkout.session.async_payment_failed" ? "payment-failed" : "processing", customerEmail: customer?.email || "", customerName: customer?.name || "", shippingDetails: shipping || customer?.address || null, ...(checkoutShippingAddress ? { shippingAddress: checkoutShippingAddress, shippingAddressChangedByCustomer: shippingAddressDiffers(originalShippingAddress, checkoutShippingAddress) } : {}), amountSubtotal: session.amount_subtotal || 0, amountTotal: session.amount_total || 0, taxAmount: totalDetails?.amount_tax || 0, stripeShippingAmount: totalDetails?.amount_shipping || 0, currency: session.currency || "usd", updatedAt: new Date().toISOString() } });
+      await database.collection("merch_orders").updateOne({ id: orderId }, { $set: { status: paid ? "paid" : event.type === "checkout.session.async_payment_failed" ? "payment-failed" : "processing", customerEmail: customer?.email || existingOrder.customerEmail || "", customerName: customer?.name || existingOrder.customerName || "", shippingDetails: shipping || customer?.address || existingOrder.shippingAddress || null, ...(checkoutShippingAddress ? { shippingAddress: checkoutShippingAddress, shippingAddressChangedByCustomer: shippingAddressDiffers(originalShippingAddress, checkoutShippingAddress) } : {}), amountSubtotal: session.amount_subtotal || 0, amountTotal: session.amount_total || 0, taxAmount: totalDetails?.amount_tax || 0, stripeShippingAmount: totalDetails?.amount_shipping || 0, currency: session.currency || "usd", updatedAt: new Date().toISOString() } });
       if (paid) {
         const order = await database.collection("merch_orders").findOne({ id: orderId });
         if (order?.orderType === "book" && order.presale === true && order.shippoRateId && !order.shippoTransactionId) {
@@ -123,7 +123,8 @@ export async function POST(request: Request) {
           }
         }
         if (order?.orderType === "book" && order.presale === true && !order.presaleConfirmationEmailSentAt) {
-          const bookTitle = String(order.items?.[0]?.name || "your book");
+          const bookName = String(order.items?.[0]?.name || "your book");
+          const bookTitle = order.items?.[0]?.variantName === "Signed copy" ? `signed copy of ${bookName}` : bookName;
           const rawReleaseDate = String(order.presaleReleaseDate || "");
           const releaseDate = /^\d{4}-\d{2}-\d{2}$/.test(rawReleaseDate) ? new Date(`${rawReleaseDate}T00:00:00`).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : rawReleaseDate || "the announced release date";
           const total = new Intl.NumberFormat("en-US", { style: "currency", currency: String(order.currency || "usd").toUpperCase() }).format((Number(order.amountTotal) || 0) / 100);
@@ -138,13 +139,15 @@ export async function POST(request: Request) {
           }
         }
         const printfulItems = (Array.isArray(order?.items) ? order.items : []).filter((item) => Number(item.printfulSyncVariantId) > 0);
-        if (printfulItems.length > 0 && !order?.printfulOrderId) {
+        if (order && printfulItems.length > 0 && !order.printfulOrderId) {
           const printfulSettings = await getPrintfulSettings();
           if (printfulSettings?.fulfillmentEnabled !== true) {
             await database.collection("merch_orders").updateOne({ id: orderId }, { $set: { printfulStatus: "test-skipped", printfulError: "Printful order forwarding is disabled for payment testing. No Printful order was created.", updatedAt: new Date().toISOString() } });
             return Response.json({ received: true, printfulSkipped: true });
           }
-          const address = shipping?.address || customer?.address || {};
+          const savedDelivery = order.shippingAddress as { name?: string; email?: string; phone?: string; street1?: string; street2?: string; city?: string; state?: string; zip?: string; country?: string } | undefined;
+          const savedStripeAddress = savedDelivery ? { line1: savedDelivery.street1, line2: savedDelivery.street2, city: savedDelivery.city, state: savedDelivery.state, postal_code: savedDelivery.zip, country: savedDelivery.country } : undefined;
+          const address = shipping?.address || (order.orderType === "merch" ? savedStripeAddress : customer?.address || savedStripeAddress) || {};
           const address1 = typeof address.line1 === "string" ? address.line1 : "";
           const city = typeof address.city === "string" ? address.city : "";
           const countryCode = typeof address.country === "string" ? address.country : "";
@@ -156,15 +159,15 @@ export async function POST(request: Request) {
               const printfulOrder = await createPrintfulOrder({
                 orderId,
                 recipient: {
-                  name: shipping?.name || customer?.name || "Customer",
+                  name: shipping?.name || savedDelivery?.name || customer?.name || "Customer",
                   address1,
                   address2: typeof address.line2 === "string" ? address.line2 : undefined,
                   city,
                   stateCode: typeof address.state === "string" ? address.state : undefined,
                   countryCode,
                   zip,
-                  email: customer?.email,
-                  phone: customer?.phone,
+                  email: customer?.email || savedDelivery?.email || order.customerEmail,
+                  phone: customer?.phone || savedDelivery?.phone,
                 },
                 items: printfulItems.map((item) => ({ syncVariantId: Number(item.printfulSyncVariantId), quantity: Number(item.quantity) || 1, retailPrice: ((Number(item.unitAmount) || 0) / 100).toFixed(2) })),
               });

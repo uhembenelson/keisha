@@ -191,6 +191,9 @@ export type CmsBook = {
   title: string;
   category: string;
   price: string;
+  signedCopyEnabled: boolean;
+  signedCopyPrice: string;
+  signedPresalePrice: string;
   availability: "paid" | "free" | "coming-soon";
   physicalEnabled: boolean;
   stripeEnabled: boolean;

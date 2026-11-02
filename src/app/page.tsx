@@ -90,7 +90,7 @@ export default async function Home() {
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-burgundy">{cms.settings.heroFeatureEyebrow}</p>
                 <h2 className="mt-2 font-display text-2xl font-semibold leading-[0.92] sm:text-3xl">{heroFeatureBook.title}</h2>
                 <p className="mt-3 line-clamp-3 text-sm leading-6 text-charcoal/80">{heroFeatureBook.shortDescription}</p>
-                <Link href={`/books/${heroFeatureBook.slug}`} className="mt-auto inline-flex w-fit items-center gap-2 bg-burgundy px-5 py-2.5 text-sm font-semibold text-cream transition-colors hover:bg-charcoal">{cms.settings.heroFeatureCtaLabel} <ArrowUpRight className="size-4" /></Link>
+                <div className="mt-auto flex flex-wrap items-center gap-3 pt-4"><Link href={`/books/${heroFeatureBook.slug}`} className="inline-flex w-fit items-center gap-2 bg-burgundy px-5 py-2.5 text-sm font-semibold text-cream transition-colors hover:bg-charcoal">{cms.settings.heroFeatureCtaLabel} <ArrowUpRight className="size-4" /></Link><BookAction book={heroFeatureBook} signedOnly /></div>
               </div>
             </article>}
             {heroNewsletterVisible && <HeroNewsletterCard title={cms.settings.heroNewsletterTitle} copy={cms.settings.heroNewsletterCopy} ctaLabel={cms.settings.heroNewsletterCtaLabel} externalUrl={cms.settings.newsletterExternalUrl} />}
