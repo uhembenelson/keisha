@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { getCmsContent } from "@/lib/cms";
 import { getMongoDatabase } from "@/lib/mongodb";
 import { getPaymentSettings, paymentSettingsReady } from "@/lib/payment-settings";
-import { US_STATES } from "@/lib/us-states";
+import { isValidUsZip, US_STATES } from "@/lib/us-states";
 
 export const runtime = "nodejs";
 
@@ -27,7 +27,7 @@ function readDeliveryAddress(value: Partial<DeliveryAddress> | undefined): Deliv
     country: "US",
   };
   const validState = US_STATES.some(([code]) => code === address.state);
-  if (!address.name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address.email) || !address.phone || !address.street1 || !address.city || !validState || !address.zip || value?.country !== "US") return null;
+  if (!address.name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address.email) || !address.phone || !address.street1 || !address.city || !validState || !isValidUsZip(address.zip) || value?.country !== "US") return null;
   if ([address.name, address.email, address.phone, address.street1, address.street2, address.city, address.zip].some((field) => field.length > 200)) return null;
   return address;
 }
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
   const requested = Array.isArray(body?.items) ? body.items.slice(0, 20) : [];
   if (!requested.length) return Response.json({ error: "Your cart is empty." }, { status: 400 });
   const address = readDeliveryAddress(body?.address);
-  if (!address) return Response.json({ error: "Enter a complete US delivery address, email, and phone number before payment." }, { status: 400 });
+  if (!address) return Response.json({ error: "Enter a complete US delivery address with a valid ZIP code, email, and phone number before payment." }, { status: 400 });
   const settings = await getPaymentSettings();
   if (!paymentSettingsReady(settings)) return Response.json({ error: "Secure checkout is being configured. Please try again later." }, { status: 503 });
   const cms = await getCmsContent();
@@ -59,13 +59,14 @@ export async function POST(request: Request) {
   const customerResponse = await fetch("https://api.stripe.com/v1/customers", { method: "POST", headers: { authorization: `Bearer ${settings!.secretKey}`, "content-type": "application/x-www-form-urlencoded", "idempotency-key": `merch/${orderId}/customer` }, body: customerForm });
   const customer = await customerResponse.json().catch(() => null) as { id?: string; error?: { message?: string } } | null;
   if (!customerResponse.ok || !customer?.id) return Response.json({ error: customer?.error?.message || "Your delivery details could not be prepared for Stripe." }, { status: 502 });
-  const form = new URLSearchParams({ mode: "payment", success_url: `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${origin}/cart`, client_reference_id: orderId, customer: customer.id, "metadata[order_id]": orderId, "automatic_tax[enabled]": "true", billing_address_collection: "auto" });
+  const form = new URLSearchParams({ mode: "payment", success_url: `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${origin}/cart`, client_reference_id: orderId, customer: customer.id, "customer_update[address]": "auto", "customer_update[shipping]": "auto", "metadata[order_id]": orderId, "automatic_tax[enabled]": "true", billing_address_collection: "auto" });
   items.forEach(({ product, variant, quantity, amount }, index) => {
     form.set(`line_items[${index}][quantity]`, String(quantity));
     form.set(`line_items[${index}][price_data][currency]`, "usd");
     form.set(`line_items[${index}][price_data][unit_amount]`, String(amount));
     form.set(`line_items[${index}][price_data][tax_behavior]`, "exclusive");
     form.set(`line_items[${index}][price_data][product_data][name]`, variant ? `${product.name} — ${variant.name}` : product.name);
+    form.set(`line_items[${index}][price_data][product_data][tax_code]`, "txcd_99999999");
     if (product.shortDescription) form.set(`line_items[${index}][price_data][product_data][description]`, product.shortDescription.slice(0, 500));
   });
   const stripeResponse = await fetch("https://api.stripe.com/v1/checkout/sessions", { method: "POST", headers: { authorization: `Bearer ${settings!.secretKey}`, "content-type": "application/x-www-form-urlencoded" }, body: form });

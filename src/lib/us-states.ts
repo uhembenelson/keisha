@@ -10,3 +10,9 @@ export const US_STATES = [
   ["SC", "South Carolina"], ["SD", "South Dakota"], ["TN", "Tennessee"], ["TX", "Texas"], ["UT", "Utah"],
   ["VT", "Vermont"], ["VA", "Virginia"], ["WA", "Washington"], ["WV", "West Virginia"], ["WI", "Wisconsin"], ["WY", "Wyoming"],
 ] as const;
+
+export const US_ZIP_PATTERN = /^\d{5}(-\d{4})?$/;
+
+export function isValidUsZip(value: string) {
+  return US_ZIP_PATTERN.test(value.trim());
+}

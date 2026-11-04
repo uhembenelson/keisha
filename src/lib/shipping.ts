@@ -3,6 +3,7 @@ import "server-only";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 
 import { getMongoDatabase } from "@/lib/mongodb";
+import { isValidUsZip } from "@/lib/us-states";
 
 export type ShippingAddress = {
   name: string;
@@ -122,7 +123,7 @@ export function shippingSettingsProblems(settings: ShippingSettings | null) {
   if (!sender.street1.trim()) problems.push("street address");
   if (!sender.city.trim()) problems.push("city");
   if (!sender.state.trim()) problems.push("state code");
-  if (!sender.zip.trim()) problems.push("ZIP code");
+  if (!isValidUsZip(sender.zip)) problems.push("ZIP code");
   if (!(Number(parcel.length) > 0)) problems.push("package length");
   if (!(Number(parcel.width) > 0)) problems.push("package width");
   if (!(Number(parcel.height) > 0)) problems.push("package height");
@@ -134,17 +135,33 @@ export function isShippoTestMode(settings: ShippingSettings | null) {
   return Boolean(settings?.token.startsWith("shippo_test_"));
 }
 
+const shippoTimeoutMs = 25_000;
+
+export class ShippoTimeoutError extends Error {
+  constructor() {
+    super("Shippo took too long to answer. Please try calculating shipping again.");
+    this.name = "ShippoTimeoutError";
+  }
+}
+
 async function shippoRequest<T>(path: string, settings: ShippingSettings, init?: RequestInit): Promise<T> {
-  const response = await fetch(`https://api.goshippo.com${path}`, {
-    ...init,
-    headers: {
-      authorization: `ShippoToken ${settings.token}`,
-      "content-type": "application/json",
-      "shippo-api-version": "2018-02-08",
-      ...init?.headers,
-    },
-    cache: "no-store",
-  });
+  let response: Response;
+  try {
+    response = await fetch(`https://api.goshippo.com${path}`, {
+      ...init,
+      headers: {
+        authorization: `ShippoToken ${settings.token}`,
+        "content-type": "application/json",
+        "shippo-api-version": "2018-02-08",
+        ...init?.headers,
+      },
+      cache: "no-store",
+      signal: AbortSignal.timeout(shippoTimeoutMs),
+    });
+  } catch (error) {
+    if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) throw new ShippoTimeoutError();
+    throw new Error(error instanceof Error && error.message ? `Shippo could not be reached: ${error.message}` : "Shippo could not be reached.");
+  }
   const result = await response.json().catch(() => ({})) as T & { detail?: string; message?: string; messages?: { text?: string }[] };
   if (!response.ok) throw new Error(result.detail || result.message || result.messages?.[0]?.text || `Shippo request failed (${response.status}).`);
   return result;
@@ -179,7 +196,18 @@ export async function createShippingRates(settings: ShippingSettings, address: S
     durationTerms: rate.duration_terms || "",
   })).filter((rate) => rate.id && rate.amount > 0 && rate.currency === "usd").sort((a, b) => a.amount - b.amount);
   if (!shipment.object_id || rates.length === 0) throw new Error(shipment.messages?.[0]?.text || "No shipping services are available for this address.");
-  return { shipmentId: shipment.object_id, rates };
+  return { shipmentId: shipment.object_id, rates: preferredBookRates(rates) };
+}
+
+const mediaMailService = /media mail/i;
+
+// Books ship USPS Media Mail only. Shippo's test sandbox does not simulate Media Mail,
+// so fall back to the cheapest USPS rate (then any rate) to keep checkout working until live mode.
+function preferredBookRates(rates: ShippingRate[]): ShippingRate[] {
+  const usps = rates.filter((rate) => rate.provider.toLowerCase() === "usps");
+  const mediaMail = usps.filter((rate) => mediaMailService.test(rate.service));
+  if (mediaMail.length > 0) return mediaMail;
+  return [usps[0] ?? rates[0]];
 }
 
 export async function purchaseShippingLabel(settings: ShippingSettings, rateId: string, orderId: string) {

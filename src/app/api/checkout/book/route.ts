@@ -45,6 +45,33 @@ export async function POST(request: Request) {
 
   const orderId = randomUUID();
   const origin = (process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin).replace(/\/$/, "");
+  let stripeCustomerId = "";
+  if (format === "physical") {
+    const customerForm = new URLSearchParams({
+      email: quote!.address!.email,
+      name: quote!.address!.name,
+      phone: quote!.address!.phone,
+      "address[line1]": quote!.address!.street1,
+      "address[line2]": quote!.address!.street2,
+      "address[city]": quote!.address!.city,
+      "address[state]": quote!.address!.state,
+      "address[postal_code]": quote!.address!.zip,
+      "address[country]": "US",
+      "shipping[name]": quote!.address!.name,
+      "shipping[phone]": quote!.address!.phone,
+      "shipping[address][line1]": quote!.address!.street1,
+      "shipping[address][line2]": quote!.address!.street2,
+      "shipping[address][city]": quote!.address!.city,
+      "shipping[address][state]": quote!.address!.state,
+      "shipping[address][postal_code]": quote!.address!.zip,
+      "shipping[address][country]": "US",
+      "metadata[order_id]": orderId,
+    });
+    const customerResponse = await fetch("https://api.stripe.com/v1/customers", { method: "POST", headers: { authorization: `Bearer ${settings!.secretKey}`, "content-type": "application/x-www-form-urlencoded", "idempotency-key": `book/${orderId}/customer` }, body: customerForm });
+    const customer = await customerResponse.json().catch(() => null) as { id?: string; error?: { message?: string } } | null;
+    if (!customerResponse.ok || !customer?.id) return Response.json({ error: customer?.error?.message || "Your delivery details could not be prepared for Stripe." }, { status: 502 });
+    stripeCustomerId = customer.id;
+  }
   const form = new URLSearchParams({
     mode: "payment",
     success_url: `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
@@ -60,13 +87,15 @@ export async function POST(request: Request) {
     "line_items[0][price_data][unit_amount]": String(amount),
     "line_items[0][price_data][tax_behavior]": "exclusive",
     "line_items[0][price_data][product_data][name]": `${presale ? "Pre-order: " : ""}${signedCopy ? "Signed copy: " : ""}${book.title}`,
+    "line_items[0][price_data][product_data][tax_code]": format === "physical" ? "txcd_99999999" : "txcd_10000000",
     "metadata[signed_copy]": signedCopy ? "true" : "false",
   });
   if (book.shortDescription) form.set("line_items[0][price_data][product_data][description]", book.shortDescription.slice(0, 500));
   if (format === "physical") {
-    form.set("customer_email", quote!.address!.email);
+    form.set("customer", stripeCustomerId);
+    form.set("customer_update[address]", "auto");
+    form.set("customer_update[shipping]", "auto");
     form.set("billing_address_collection", "required");
-    form.set("shipping_address_collection[allowed_countries][0]", "US");
     form.set("shipping_options[0][shipping_rate_data][type]", "fixed_amount");
     form.set("shipping_options[0][shipping_rate_data][display_name]", `${selectedRate!.provider} ${selectedRate!.service} shipping`);
     form.set("shipping_options[0][shipping_rate_data][fixed_amount][amount]", String(selectedRate!.amount));
@@ -79,7 +108,7 @@ export async function POST(request: Request) {
 
   const order = format === "digital"
     ? { id: orderId, orderType: "book", format, presale, presaleReleaseDate: presale ? book.presaleReleaseDate : "", stripeSessionId: stripe.id, status: "pending", customerEmail: "", customerName: "", digitalDownloadUrl: book.digitalDownloadUrl.trim(), items: [{ productId: book.id, name: book.title, variantId: "", variantName: "", printfulSyncVariantId: null, fulfillment: "digital", quantity: 1, unitAmount: amount }], amountTotal: amount, currency: "usd", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
-    : { id: orderId, orderType: "book", format, presale, signedCopy, presaleReleaseDate: presale ? book.presaleReleaseDate : "", stripeSessionId: stripe.id, status: "pending", customerEmail: quote!.address!.email, customerName: quote!.address!.name, shippingAddress: quote!.address, shippoShipmentId: quote!.shipmentId, shippoRateId: selectedRate!.id, shippingRate: selectedRate, shippingAmount: selectedRate!.amount, shippoStatus: presale ? "presale-awaiting-release" : "awaiting-payment", items: [{ productId: book.id, name: book.title, variantId: "", variantName: signedCopy ? "Signed copy" : "", printfulSyncVariantId: null, fulfillment: "shippo", quantity, unitAmount: amount }], amountTotal: amount * quantity + selectedRate!.amount, currency: "usd", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+    : { id: orderId, orderType: "book", format, presale, signedCopy, presaleReleaseDate: presale ? book.presaleReleaseDate : "", stripeSessionId: stripe.id, ...(stripeCustomerId ? { stripeCustomerId } : {}), status: "pending", customerEmail: quote!.address!.email, customerName: quote!.address!.name, shippingAddress: quote!.address, shippoShipmentId: quote!.shipmentId, shippoRateId: selectedRate!.id, shippingRate: selectedRate, shippingAmount: selectedRate!.amount, shippoStatus: presale ? "presale-awaiting-release" : "awaiting-payment", items: [{ productId: book.id, name: book.title, variantId: "", variantName: signedCopy ? "Signed copy" : "", printfulSyncVariantId: null, fulfillment: "shippo", quantity, unitAmount: amount }], amountTotal: amount * quantity + selectedRate!.amount, currency: "usd", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
   await database.collection("merch_orders").insertOne(order);
   if (format === "physical") await database.collection("shipping_quotes").updateOne({ id: body?.quoteId }, { $set: { usedAt: new Date().toISOString(), orderId } });
   return Response.json({ url: stripe.url });
