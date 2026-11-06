@@ -3,7 +3,7 @@ import "server-only";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { CMS_MEDIA_CATEGORIES, CMS_MERCH_CATEGORIES, type CmsContent, type CmsHomepageCreativeRole, type CmsHomepageSection, type CmsHomepageSectionId, type CmsMediaCategory, type CmsMediaCategoryConfig, type CmsMerchCategory, type CmsSocialLink } from "@/lib/cms-types";
+import { CMS_MEDIA_CATEGORIES, CMS_MERCH_CATEGORIES, type CmsBook, type CmsContent, type CmsHomepageCreativeRole, type CmsHomepageSection, type CmsHomepageSectionId, type CmsMediaCategory, type CmsMediaCategoryConfig, type CmsMerchCategory, type CmsSocialLink } from "@/lib/cms-types";
 import { getMongoDatabase } from "@/lib/mongodb";
 
 const dataDirectory = path.join(process.cwd(), "data");
@@ -138,6 +138,15 @@ export async function getCmsContent(): Promise<CmsContent> {
     return fallback;
   }
   return readJsonContent();
+}
+
+export async function getCmsBooks(): Promise<CmsBook[]> {
+  const database = await getMongoDatabase();
+  if (database) {
+    const document = await database.collection("site_content").findOne<{ content?: { books?: CmsBook[] } }>({ _id: "primary" } as never, { projection: { "content.books": 1 } });
+    if (document?.content?.books) return document.content.books;
+  }
+  return (await getCmsContent()).books;
 }
 
 async function readJsonContent(): Promise<CmsContent> {

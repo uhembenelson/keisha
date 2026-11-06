@@ -54,7 +54,7 @@ export async function POST(request: Request) {
       labelAmount = selectedRate.amount;
     }
 
-    const label = await purchaseShippingLabel(settings!, rateId, String(order.id));
+    const label = await purchaseShippingLabel(settings!, rateId, String(order.id), shipmentId);
     const now = new Date().toISOString();
     const changes = {
       shippoTransactionId: label.object_id || "",

@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 
-import { getCmsContent } from "@/lib/cms";
+import { getCmsBooks } from "@/lib/cms";
 import { getMongoDatabase } from "@/lib/mongodb";
-import { createShippingRates, getShippingSettings, shippingSettingsReady, ShippoTimeoutError, type ShippingAddress } from "@/lib/shipping";
+import { createShippingRates, getShippingSettings, shippingSettingsReady, ShippingTimeoutError, type ShippingAddress } from "@/lib/shipping";
 import { isValidUsZip, US_STATES } from "@/lib/us-states";
 
 export const runtime = "nodejs";
@@ -33,8 +33,8 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null) as { bookId?: string; quantity?: number; address?: Partial<ShippingAddress> } | null;
   const parsedAddress = readAddress(body?.address);
   if ("error" in parsedAddress) return Response.json({ error: parsedAddress.error }, { status: 400 });
-  const cms = await getCmsContent();
-  const book = cms.books.find((entry) => entry.id === body?.bookId && entry.published && entry.availability === "paid" && entry.physicalEnabled && entry.stripeEnabled);
+  const books = await getCmsBooks();
+  const book = books.find((entry) => entry.id === body?.bookId && entry.published && entry.availability === "paid" && entry.physicalEnabled && entry.stripeEnabled);
   if (!book) return Response.json({ error: "This book is not available for direct checkout." }, { status: 400 });
   const quantity = Math.max(1, Math.min(10, Math.floor(Number(body?.quantity) || 1)));
   const settings = await getShippingSettings();
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     await quotes.insertOne({ id: quoteId, bookId: book.id, quantity, address: parsedAddress.address, shipmentId: quote.shipmentId, rates: quote.rates, createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 30 * 60_000) });
     return Response.json({ quoteId, rates: quote.rates });
   } catch (error) {
-    if (error instanceof ShippoTimeoutError) return Response.json({ error: error.message }, { status: 504 });
+    if (error instanceof ShippingTimeoutError) return Response.json({ error: error.message }, { status: 504 });
     return Response.json({ error: error instanceof Error ? error.message : "Shipping rates could not be calculated." }, { status: 502 });
   }
 }

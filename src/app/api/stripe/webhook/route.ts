@@ -113,7 +113,7 @@ export async function POST(request: Request) {
                   shippingRate = selectedRate;
                   labelAmount = selectedRate.amount;
                 }
-                const label = await purchaseShippingLabel(shippingSettings!, rateId, orderId);
+                const label = await purchaseShippingLabel(shippingSettings!, rateId, orderId, shipmentId);
                 await database.collection("merch_orders").updateOne({ id: orderId }, { $set: { shippoTransactionId: label.object_id || "", shippoStatus: "label-created", shippoRateId: rateId, shippoShipmentId: shipmentId, shippingRate, shippoLabelAmount: labelAmount, shippingVarianceAmount: labelAmount - (Number(order.shippingAmount) || 0), labelUrl: label.label_url || "", trackingNumber: label.tracking_number || "", trackingUrl: label.tracking_url_provider || "", status: "processing", updatedAt: new Date().toISOString() } });
               } catch (error) {
                 await database.collection("merch_orders").updateOne({ id: orderId }, { $set: { shippoStatus: "label-failed", shippoError: error instanceof Error ? error.message : "Shippo label creation failed.", updatedAt: new Date().toISOString() } });

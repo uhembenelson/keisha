@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { getCmsContent } from "@/lib/cms";
+import { getCmsBooks } from "@/lib/cms";
 import { getMongoDatabase } from "@/lib/mongodb";
 import { getPaymentSettings, paymentSettingsReady } from "@/lib/payment-settings";
 import type { ShippingAddress, ShippingRate } from "@/lib/shipping";
@@ -14,9 +14,9 @@ function unitAmount(price: string) {
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null) as { bookId?: string; format?: "physical" | "digital"; quantity?: number; quoteId?: string; rateId?: string; signedCopy?: boolean } | null;
-  const cms = await getCmsContent();
+  const books = await getCmsBooks();
   const format = body?.format === "digital" ? "digital" : "physical";
-  const book = cms.books.find((entry) => entry.id === body?.bookId && entry.published && entry.availability === "paid");
+  const book = books.find((entry) => entry.id === body?.bookId && entry.published && entry.availability === "paid");
   const signedCopy = body?.signedCopy === true;
   const presale = book?.presaleEnabled === true;
   const selectedPrice = book ? format === "digital" ? book.digitalPrice : signedCopy ? presale ? book.signedPresalePrice || book.signedCopyPrice || book.price : book.signedCopyPrice || book.price : book.price : "";
