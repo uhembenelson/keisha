@@ -5,6 +5,7 @@ export const runtime = "nodejs";
 type DigitalOrder = {
   stripeSessionId?: string;
   orderType?: string;
+  orderSource?: string;
   format?: string;
   status?: string;
   digitalDownloadUrl?: string;
@@ -34,9 +35,9 @@ export async function GET(request: Request) {
   const database = await getMongoDatabase();
   if (!database) return Response.json({ kind: "unknown", ready: false }, { status: 503, headers: { "cache-control": "no-store" } });
 
-  const order = await database.collection("merch_orders").findOne({ stripeSessionId: sessionId }, { projection: { _id: 0, stripeSessionId: 1, orderType: 1, format: 1, status: 1, digitalDownloadUrl: 1, presale: 1, presaleReleaseDate: 1, digitalReleasedAt: 1 } }) as DigitalOrder | null;
+  const order = await database.collection("merch_orders").findOne({ stripeSessionId: sessionId }, { projection: { _id: 0, stripeSessionId: 1, orderType: 1, orderSource: 1, format: 1, status: 1, digitalDownloadUrl: 1, presale: 1, presaleReleaseDate: 1, digitalReleasedAt: 1 } }) as DigitalOrder | null;
   if (!order || order.orderType !== "book" || order.format !== "digital") {
-    return Response.json({ kind: "other", ready: false }, { headers: { "cache-control": "no-store" } });
+    return Response.json({ kind: "other", ready: false, orderType: order?.orderType || "", orderSource: order?.orderSource || "" }, { headers: { "cache-control": "no-store" } });
   }
   if (order.status !== "paid") {
     return Response.json({ kind: "digital", ready: false, paid: false }, { headers: { "cache-control": "no-store" } });

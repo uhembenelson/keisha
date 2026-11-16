@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Check, Download, LoaderCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { writeBookBag } from "@/lib/book-bag";
 import { writeMerchCart } from "@/lib/merch-cart";
 
 export function CheckoutSuccess() {
@@ -18,9 +19,10 @@ export function CheckoutSuccess() {
     const check = async () => {
       try {
         const response = await fetch(`/api/checkout/book/download?check=1&session_id=${encodeURIComponent(sessionId)}`, { cache: "no-store" });
-        const result = await response.json().catch(() => ({})) as { kind?: string; ready?: boolean; releasePending?: boolean; releaseDate?: string };
+        const result = await response.json().catch(() => ({})) as { kind?: string; ready?: boolean; releasePending?: boolean; releaseDate?: string; orderType?: string; orderSource?: string };
         if (!active) return;
         if (result.kind !== "digital") {
+          if (result.orderType === "book" && result.orderSource === "book-bag") writeBookBag([]);
           setDigitalOrder(null);
           return;
         }

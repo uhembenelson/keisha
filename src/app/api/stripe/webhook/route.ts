@@ -4,6 +4,7 @@ import { getMongoDatabase } from "@/lib/mongodb";
 import { getPaymentSettings } from "@/lib/payment-settings";
 import { createPrintfulOrder, getPrintfulSettings } from "@/lib/printful";
 import { sendTransactionalEmail } from "@/lib/email-studio";
+import { orderCopyCount, orderIncludesSignedCopy, orderItemTitles } from "@/lib/order-items";
 import { createShippingRates, getShippingSettings, purchaseShippingLabel, shippingSettingsReady, type ShippingAddress } from "@/lib/shipping";
 
 export const runtime = "nodejs";
@@ -104,7 +105,7 @@ export async function POST(request: Request) {
                 if (order.shippingAddressChangedByCustomer === true) {
                   const address = order.shippingAddress as ShippingAddress | undefined;
                   if (!address) throw new Error("Stripe returned a changed delivery address that could not be rated.");
-                  const freshShipment = await createShippingRates(shippingSettings!, address, Math.max(1, Number(order.items?.[0]?.quantity) || 1));
+                  const freshShipment = await createShippingRates(shippingSettings!, address, orderCopyCount(order.items));
                   const previousRate = order.shippingRate as { provider?: string; service?: string } | undefined;
                   const selectedRate = freshShipment.rates.find((rate) => rate.provider.toLowerCase() === previousRate?.provider?.toLowerCase() && rate.service.toLowerCase() === previousRate?.service?.toLowerCase()) || freshShipment.rates[0];
                   if (!selectedRate) throw new Error("Shippo did not return a current rate for the confirmed delivery address.");
@@ -123,8 +124,8 @@ export async function POST(request: Request) {
           }
         }
         if (order?.orderType === "book" && order.presale === true && !order.presaleConfirmationEmailSentAt) {
-          const bookName = String(order.items?.[0]?.name || "your book");
-          const bookTitle = order.items?.[0]?.variantName === "Signed copy" ? `signed copy of ${bookName}` : bookName;
+          const bookName = orderItemTitles(order.items);
+          const bookTitle = orderIncludesSignedCopy(order.items) ? `signed copy of ${bookName}` : bookName;
           const rawReleaseDate = String(order.presaleReleaseDate || "");
           const releaseDate = /^\d{4}-\d{2}-\d{2}$/.test(rawReleaseDate) ? new Date(`${rawReleaseDate}T00:00:00`).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : rawReleaseDate || "the announced release date";
           const total = new Intl.NumberFormat("en-US", { style: "currency", currency: String(order.currency || "usd").toUpperCase() }).format((Number(order.amountTotal) || 0) / 100);

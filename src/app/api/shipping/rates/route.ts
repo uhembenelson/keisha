@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 
+import { bookLineCopyCount, isBookBagEligible, normalizeBookLines, type BookLineRequest } from "@/lib/book-order";
 import { getCmsBooks } from "@/lib/cms";
+import type { CmsBook } from "@/lib/cms-types";
 import { getMongoDatabase } from "@/lib/mongodb";
 import { createShippingRates, getShippingSettings, shippingSettingsReady, ShippingTimeoutError, type ShippingAddress } from "@/lib/shipping";
 import { isValidUsZip, US_STATES } from "@/lib/us-states";
@@ -29,14 +31,25 @@ function readAddress(input: Partial<ShippingAddress> | undefined): { address: Sh
   return { address };
 }
 
+function singleBookAvailable(book: CmsBook | undefined) {
+  return Boolean(book && book.published && book.availability === "paid" && book.physicalEnabled && book.stripeEnabled);
+}
+
 export async function POST(request: Request) {
-  const body = await request.json().catch(() => null) as { bookId?: string; quantity?: number; address?: Partial<ShippingAddress> } | null;
+  const body = await request.json().catch(() => null) as { bookId?: string; quantity?: number; items?: BookLineRequest[]; address?: Partial<ShippingAddress> } | null;
   const parsedAddress = readAddress(body?.address);
   if ("error" in parsedAddress) return Response.json({ error: parsedAddress.error }, { status: 400 });
+  const requestedItems = Array.isArray(body?.items) ? body.items : [];
+  const isBag = requestedItems.length > 0;
+  const lines = normalizeBookLines(isBag ? requestedItems : body?.bookId ? [{ bookId: body.bookId, quantity: body.quantity }] : []);
+  if (lines.length === 0) return Response.json({ error: "Choose at least one book before calculating shipping." }, { status: 400 });
   const books = await getCmsBooks();
-  const book = books.find((entry) => entry.id === body?.bookId && entry.published && entry.availability === "paid" && entry.physicalEnabled && entry.stripeEnabled);
-  if (!book) return Response.json({ error: "This book is not available for direct checkout." }, { status: 400 });
-  const quantity = Math.max(1, Math.min(10, Math.floor(Number(body?.quantity) || 1)));
+  const available = lines.every((line) => {
+    const book = books.find((entry) => entry.id === line.bookId);
+    return isBag ? isBookBagEligible(book) : singleBookAvailable(book);
+  });
+  if (!available) return Response.json({ error: isBag ? "One or more books in your bag are not available for direct checkout." : "This book is not available for direct checkout." }, { status: 400 });
+  const quantity = bookLineCopyCount(lines);
   const settings = await getShippingSettings();
   if (!shippingSettingsReady(settings)) return Response.json({ error: "Shipping is being configured. Please try again later." }, { status: 503 });
   const database = await getMongoDatabase();
@@ -46,7 +59,7 @@ export async function POST(request: Request) {
     const quoteId = randomUUID();
     const quotes = database.collection("shipping_quotes");
     await quotes.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
-    await quotes.insertOne({ id: quoteId, bookId: book.id, quantity, address: parsedAddress.address, shipmentId: quote.shipmentId, rates: quote.rates, createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 30 * 60_000) });
+    await quotes.insertOne({ id: quoteId, bookId: lines[0].bookId, quantity, items: lines, address: parsedAddress.address, shipmentId: quote.shipmentId, rates: quote.rates, createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 30 * 60_000) });
     return Response.json({ quoteId, rates: quote.rates });
   } catch (error) {
     if (error instanceof ShippingTimeoutError) return Response.json({ error: error.message }, { status: 504 });

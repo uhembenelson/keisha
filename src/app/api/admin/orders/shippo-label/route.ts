@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { ADMIN_SESSION_COOKIE, isValidAdminSession } from "@/lib/admin-auth";
 import { getMongoDatabase } from "@/lib/mongodb";
 import { sendTransactionalEmail } from "@/lib/email-studio";
+import { orderCopyCount, orderItemTitles } from "@/lib/order-items";
 import { createShippingRates, getShippingSettings, purchaseShippingLabel, shippingSettingsReady, type ShippingAddress } from "@/lib/shipping";
 
 export const runtime = "nodejs";
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
   try {
     if (needsFreshRate) {
       const address = order.shippingAddress as ShippingAddress | undefined;
-      const quantity = Math.max(1, Number(order.items?.[0]?.quantity) || 1);
+      const quantity = orderCopyCount(order.items);
       if (!address?.name || !address.street1 || !address.city || !address.state || !address.zip || address.country !== "US") throw new Error("The order does not have a complete shipping address.");
       const freshShipment = await createShippingRates(settings!, address, quantity);
       const previousRate = order.shippingRate as { provider?: string; service?: string } | undefined;
@@ -76,7 +77,7 @@ export async function POST(request: Request) {
 
     let emailError = "";
     if (presale && order.customerEmail && label.tracking_url_provider) {
-      const bookTitle = String(order.items?.[0]?.name || "your book");
+      const bookTitle = orderItemTitles(order.items);
       try {
         const trackingUrl = String(label.tracking_url_provider);
         const trackingNumber = String(label.tracking_number || "Pending");
