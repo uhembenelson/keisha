@@ -18,6 +18,15 @@ type StoredEmailSettings = {
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// MongoDB documents carry an `_id`. After a JSON round-trip it comes back as a string,
+// which MongoDB rejects on write ("immutable field '_id' was found to have been altered").
+// Storage keys on the app-level `id`, so drop any `_id` before writing or returning.
+function withoutMongoId<T>(document: T): T {
+  const copy = { ...document } as T & { _id?: unknown };
+  delete copy._id;
+  return copy;
+}
+
 function secretKey() {
   const value = process.env.CMS_SESSION_SECRET?.trim();
   if (!value) throw new Error("CMS_SESSION_SECRET is required before email credentials can be saved.");
@@ -85,8 +94,8 @@ export async function getEmailStudioData() {
   const submissions = await getSubmissions();
   if (!database) return { templates: [] as EmailTemplate[], campaigns: [] as EmailCampaign[], settings: publicSettings(null), subscribers: submissions.subscribers.map(({ id, email, status }) => ({ id, email, status })) };
   const [storedTemplates, campaigns, settings] = await Promise.all([
-    database.collection<EmailTemplate>("email_templates").find().sort({ updatedAt: -1 }).toArray(),
-    database.collection<EmailCampaign>("email_campaigns").find().sort({ createdAt: -1 }).limit(200).toArray(),
+    database.collection<EmailTemplate>("email_templates").find({}, { projection: { _id: 0 } }).sort({ updatedAt: -1 }).toArray(),
+    database.collection<EmailCampaign>("email_campaigns").find({}, { projection: { _id: 0 } }).sort({ createdAt: -1 }).limit(200).toArray(),
     database.collection<StoredEmailSettings>("integration_settings").findOne({ _id: "email-studio" }),
   ]);
   const templates = storedTemplates as unknown as EmailTemplate[];
@@ -94,7 +103,7 @@ export async function getEmailStudioData() {
     const starter = createDefaultEmailTemplate();
     starter.name = "WriteNow Newsletter";
     await database.collection<EmailTemplate>("email_templates").insertOne(starter);
-    templates.push(starter);
+    templates.push(withoutMongoId(starter));
   }
   return { templates, campaigns, settings: publicSettings(settings), subscribers: submissions.subscribers.map(({ id, email, status }) => ({ id, email, status })) };
 }
@@ -103,8 +112,8 @@ export async function saveEmailTemplate(template: EmailTemplate) {
   const database = await getMongoDatabase();
   if (!database) throw new Error("MongoDB must be connected before email templates can be saved.");
   const now = new Date().toISOString();
-  const normalized = { ...template, id: template.id || randomUUID(), name: template.name.trim().slice(0, 120) || "Untitled email", subject: template.subject.trim().slice(0, 200), preheader: template.preheader.trim().slice(0, 240), updatedAt: now, createdAt: template.createdAt || now };
-  await database.collection<EmailTemplate>("email_templates").replaceOne({ id: normalized.id }, normalized, { upsert: true });
+  const normalized = { ...withoutMongoId(template), id: template.id || randomUUID(), name: template.name.trim().slice(0, 120) || "Untitled email", subject: template.subject.trim().slice(0, 200), preheader: template.preheader.trim().slice(0, 240), updatedAt: now, createdAt: template.createdAt || now };
+  await database.collection<EmailTemplate>("email_templates").replaceOne({ id: normalized.id }, withoutMongoId(normalized), { upsert: true });
   return normalized;
 }
 
@@ -250,12 +259,12 @@ export async function sendEmailCampaign(input: { template: EmailTemplate; audien
       if (!response.ok) throw new Error(result?.message || result?.error?.message || `Resend rejected the campaign (${response.status}).`);
       sentCount += batch.length;
     }
-    const completed = { ...campaign, status: "sent" as const, sentCount, sentAt: new Date().toISOString() };
-    await collection.replaceOne({ id: campaign.id }, completed);
+    const completed = withoutMongoId({ ...campaign, status: "sent" as const, sentCount, sentAt: new Date().toISOString() });
+    await collection.updateOne({ id: campaign.id }, { $set: completed });
     return completed;
   } catch (error) {
-    const failed = { ...campaign, status: "failed" as const, failedCount: recipients.length, error: error instanceof Error ? error.message : "Email delivery failed." };
-    await collection.replaceOne({ id: campaign.id }, failed);
+    const failed = withoutMongoId({ ...campaign, status: "failed" as const, failedCount: recipients.length, error: error instanceof Error ? error.message : "Email delivery failed." });
+    await collection.updateOne({ id: campaign.id }, { $set: failed });
     throw error;
   }
 }
